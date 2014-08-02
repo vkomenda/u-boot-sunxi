@@ -1041,6 +1041,7 @@ static char nand_help_text[] =
 	"nand scrub [-y] off size | scrub.part partition | scrub.chip\n"
 	"    really clean NAND erasing bad blocks (UNSAFE)\n"
 	"nand markbad off [...] - mark bad block(s) at offset (UNSAFE)\n"
+	"nand test [-k] [-s] [off] [size] - test the whole flash chip for bad blocks\n"
 	"nand biterr off - make a bit error at offset (UNSAFE)"
 #ifdef CONFIG_CMD_NAND_LOCK_UNLOCK
 	"\n"
@@ -1054,6 +1055,18 @@ static char nand_help_text[] =
 	"    first device.\n"
 	"nand env.oob set off|partition - set enviromnent offset\n"
 	"nand env.oob get - get environment offset"
+#endif
+#ifdef CONFIG_CMD_NAND_PACKIMG
+	"\n"
+	"nand packimg read nand_off nand_size\n"
+	"nand packimg read.part partition\n"
+	"nand packimg write nand_off nand_size mem_off mem_size [max_copy]\n"
+	"nand packimg write.part partition mem_off mem_size [max_copy]"
+#endif
+#ifdef CONFIG_CMD_NAND_1K
+	"\n"
+	"nand read.1k - addr off|partition size\n"
+	"    write.1k - addr off|partition size\n"
 #endif
 	"";
 #endif
