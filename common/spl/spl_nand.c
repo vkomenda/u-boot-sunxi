@@ -33,6 +33,8 @@
 extern int sunxi_nand_spl_page_size;
 extern int sunxi_nand_spl_block_size;
 
+int nand_spl_isbad(uint32_t offs);
+void nand_spl_read(uint32_t offs, int size, void *dst);
 /*
 static void load_uimage(struct image_header *header, uint32_t offs)
 {

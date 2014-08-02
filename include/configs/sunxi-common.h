@@ -65,6 +65,8 @@
 #endif
 
 
+#define CONFIG_LIB_RAND
+
 #define CONFIG_CMD_MEMORY
 #define CONFIG_CMD_SETEXPR
 
@@ -112,6 +114,7 @@
 
 #define CONFIG_SYS_NAND_PAGE_SIZE sunxi_nand_spl_page_size
 #define CONFIG_SYS_NAND_BLOCK_SIZE sunxi_nand_spl_block_size
+
 /* mmc config */
 /* Can't use MMC slot 0 if the UART is directed there */
 #elif !defined CONFIG_UART0_PORT_F || CONFIG_MMC_SUNXI_SLOT != 0
