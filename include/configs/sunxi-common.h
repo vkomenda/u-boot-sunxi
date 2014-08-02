@@ -93,6 +93,10 @@
 #define CONFIG_CMD_NAND_1K
 
 #define CONFIG_ENV_IS_IN_NAND
+
+#define CONFIG_ENV_OFFSET		0x500000	/* at 5MB */
+#define CONFIG_ENV_RANGE        0x300000
+
 #define CONFIG_SPL_NAND_SUPPORT
 #define CONFIG_SPL_NAND_ECC
 #define CONFIG_SPL_NAND_BASE
@@ -101,7 +105,7 @@
 #define CONFIG_SYS_NAND_U_BOOT_OFFS     0x100000
 
 #define CONFIG_SPL_OS_BOOT
-//#define CONFIG_SYS_SPL_ARGS_ADDR        0x44000000
+#define CONFIG_SYS_SPL_ARGS_ADDR        0x44000000
 #define CONFIG_SYS_NAND_SPL_KERNEL_OFFS 0x1100000
 #define CONFIG_SUNXI_PACKIMG_START      0x800000
 #define CONFIG_SUNXI_PACKIMG_END        0x1100000
@@ -120,10 +124,19 @@
 #endif
 #define CONFIG_ENV_IS_IN_MMC
 #define CONFIG_SYS_MMC_ENV_DEV		0	/* first detected MMC controller */
+#define CONFIG_SPL_LIBDISK_SUPPORT
+#define CONFIG_SPL_MMC_SUPPORT
+#define CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR	80	/* 40KiB */
+#define CONFIG_SPL_PAD_TO		32768		/* decimal for 'dd' */
+
+#define CONFIG_ENV_OFFSET		(544 << 10) /* (8 + 24 + 512) KiB */
+
 #endif
 
-/* 4MB of malloc() pool */
-#define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + (4 << 20))
+#define CONFIG_ENV_SIZE			(128 << 10)	/* 128 KiB */
+
+/* 16MB of malloc() pool */
+#define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + (16 << 20))
 
 /*
  * Miscellaneous configurable options
@@ -157,14 +170,43 @@
 #define CONFIG_SYS_MONITOR_LEN		(512 << 10)	/* 512 KiB */
 #define CONFIG_IDENT_STRING		" Allwinner Technology"
 
-#define CONFIG_ENV_OFFSET		(544 << 10) /* (8 + 24 + 512) KiB */
-#define CONFIG_ENV_SIZE			(128 << 10)	/* 128 KiB */
-
 #ifdef CONFIG_SPL_FEL
 #define RUN_BOOT_RAM	"run boot_ram;"
 #else
 #define RUN_BOOT_RAM	""
 #endif
+
+#define SHARE_BOOT_ENV													\
+	"ethaddr=44:37:e6:28:3b:80\0"										\
+	"serverip=192.168.0.10\0"											\
+	"ipaddr=192.168.0.114\0"											\
+																		\
+	"mtdids=nand0=mtd-nand-sunxi.0\0"									\
+	"mtdparts=mtdparts=mtd-nand-sunxi.0:1M(spl),4M(uboot),3M(env),9M(packimg),8M(kernel),64M(initfs),-(rootfs)\0" \
+																		\
+	"loadaddr=0x44000000\0"												\
+	"fl_spl=nand erase.part spl && "									\
+	"  nand write.1k ${loadaddr} 0 ${filesize} && "						\
+	"  nand write.1k ${loadaddr} 0x10000 ${filesize}\0"					\
+	"fl_uboot=nand erase.part uboot && nand write ${loadaddr} uboot ${filesize}\0" \
+	"fl_env=nand erase.part env && nand write ${loadaddr} env ${filesize}\0" \
+	"fl_packimg=nand packimg write.part packimg ${loadaddr} ${filesize} 5\0" \
+	"fl_kernel=nand erase.part kernel && nand write ${loadaddr} kernel ${filesize}\0" \
+	"fl_initfs=nand erase.part initfs && nand write ${loadaddr} initfs ${filesize}\0" \
+	"fl_rootfs=nand erase.part rootfs && "								\
+	"  ubi part rootfs && "												\
+	"  ubi create rootfs 0x8000000 && "									\
+	"  ubi write ${loadaddr} rootfs ${filesize}\0"						\
+																		\
+	"tf_spl=tftp ${loadaddr} sunxi-spl.bin && run fl_spl\0"				\
+	"tf_uboot=tftp ${loadaddr} u-boot.bin && run fl_uboot\0"			\
+	"tf_env=tftp ${loadaddr} em6000.env && run fl_env\0"				\
+	"tf_packimg=tftp ${loadaddr} pack.img && run fl_packimg\0"			\
+	"tf_kernel=tftp ${loadaddr} uImage && run fl_kernel\0"				\
+	"tf_initfs=tftp ${loadaddr} initfs.img && run fl_initfs\0"			\
+	"tf_rootfs=tftp ${loadaddr} rootfs.img && run fl_rootfs\0"			\
+
+#ifdef CONFIG_MMC
 
 #define CONFIG_BOOTCOMMAND \
 	RUN_BOOT_RAM \
@@ -269,7 +311,46 @@
 	    " setenv stdout $saved_stdout;" \
 	  "fi" \
 	  "\0" \
+	SHARE_BOOT_ENV \
 	""
+#endif
+
+#if defined(CONFIG_NAND)
+/* NAND Bootscript */
+#define CONFIG_BOOTCOMMAND						\
+	"if run loadbootenv; then "					\
+	"echo Loaded environment from ${bootenv};"	\
+	"env import -t ${scriptaddr} ${filesize};"	\
+	"fi;"										\
+	"if test -n ${uenvcmd}; then "				\
+	"echo Running uenvcmd ...;"					\
+	"run uenvcmd;"								\
+	"fi;"										\
+	"if run loadbootscr; then "					\
+	"echo Jumping to ${bootscr};"				\
+	"source ${scriptaddr};"						\
+	"fi;"										\
+	"run setargs boot_mmc;"						\
+
+
+#define CONFIG_EXTRA_ENV_SETTINGS									\
+	"kernel_loadaddr=0x47ffffc0\0"									\
+	"console=ttyS0,115200n8\0"										\
+	"nandargs=setenv bootargs console=${console} init=/linuxrc "	\
+	"mtdparts=mtd-nand-sunxi.0:17M@0x800000,64M,- ubi.mtd=2 "		\
+	"root=ubi0:rootfs rootwait rootfstype=ubifs "					\
+	"root2=10:/dev/blockrom1,squashfs,/init "						\
+	"quiet\0"														\
+	"nandboot=run nandargs; "										\
+	"nand packimg read.part packimg; "								\
+	"nand read ${kernel_loadaddr} kernel 0x500000; "				\
+	"bootm ${kernel_loadaddr}\0"									\
+	"bootcmd=run nandboot\0"										\
+	"bootdelay=5\0"													\
+	"cleanenv=nand erase.part env\0"								\
+	SHARE_BOOT_ENV
+
+#endif
 
 #define CONFIG_SYS_BOOT_GET_CMDLINE
 
@@ -312,13 +393,8 @@
 #define CONFIG_SPL_MAX_SIZE		0x5fe0		/* 24KB on sun4i/sun7i */
 #endif
 
-#define CONFIG_SPL_LIBDISK_SUPPORT
-#define CONFIG_SPL_MMC_SUPPORT
-
 #define CONFIG_SPL_LDSCRIPT "arch/arm/cpu/armv7/sunxi/u-boot-spl.lds"
 
-#define CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR	80	/* 40KiB */
-#define CONFIG_SPL_PAD_TO		32768		/* decimal for 'dd' */
 
 #endif /* CONFIG_SPL */
 /* end of 32 KiB in sram */
@@ -329,7 +405,6 @@
 
 #ifdef CONFIG_SPL_OS_BOOT
 #define CONFIG_CMD_SPL
-#define CONFIG_SYS_SPL_ARGS_ADDR		(PHYS_SDRAM_0 + 0x100)
 #ifdef CONFIG_SPL_MMC_SUPPORT
 #define CONFIG_SYS_MMCSD_RAW_MODE_ARGS_SECTOR	1344
 #define CONFIG_SYS_MMCSD_RAW_MODE_ARGS_SECTORS  256

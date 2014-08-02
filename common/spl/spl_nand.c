@@ -2,7 +2,23 @@
  * Copyright (C) 2011
  * Corscience GmbH & Co. KG - Simon Schwarz <schwarz@corscience.de>
  *
- * SPDX-License-Identifier:	GPL-2.0+
+ * See file CREDITS for list of people who contributed to this
+ * project.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+ * MA 02111-1307 USA
  */
 #include <common.h>
 #include <config.h>
@@ -131,6 +147,7 @@ static int load_packimg(uint32_t start, uint32_t end, void *buff)
 }
 
 #endif
+
 void spl_nand_load_image(void)
 {
 	struct image_header *header;
@@ -144,6 +161,11 @@ void spl_nand_load_image(void)
 	header = (struct image_header *)(CONFIG_SYS_TEXT_BASE);
 #ifdef CONFIG_SPL_OS_BOOT
 	if (!spl_start_uboot()) {
+
+#ifdef CONFIG_SUNXI
+		if (load_packimg(CONFIG_SUNXI_PACKIMG_START, CONFIG_SUNXI_PACKIMG_END, (void *)CONFIG_SYS_TEXT_BASE))
+			goto uboot;
+#else
 		/*
 		 * load parameter image
 		 * load to temp position since nand_spl_load_image reads
@@ -162,6 +184,7 @@ void spl_nand_load_image(void)
 				src++, dst++) {
 			writel(readl(src), dst);
 		}
+#endif
 
 		/* load linux */
 		nand_spl_load_image(CONFIG_SYS_NAND_SPL_KERNEL_OFFS,
@@ -180,6 +203,9 @@ void spl_nand_load_image(void)
 			puts("Trying to start u-boot now...\n");
 		}
 	}
+#endif
+#ifdef CONFIG_SUNXI
+uboot:
 #endif
 #ifdef CONFIG_NAND_ENV_DST
 	nand_spl_load_image(CONFIG_ENV_OFFSET,
