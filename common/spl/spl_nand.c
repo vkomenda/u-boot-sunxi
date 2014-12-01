@@ -53,7 +53,7 @@ static void load_uimage(struct image_header *header, uint32_t offs)
 	debug("load image %s from flash offset %x to memory %x size %x\n",
 		  name, offs, load_addr, size);
 
-	nand_spl_load_image(offs, size + sizeof(struct image_header), 
+	nand_spl_load_image(offs, size + sizeof(struct image_header),
 						load_addr - sizeof(struct image_header));
 }
 */
@@ -84,7 +84,7 @@ static int block_isbad(char *record, uint32_t start, uint32_t offs)
 	return ret;
 }
 
-static void read_skip_bad(char *record, uint32_t start, 
+static void read_skip_bad(char *record, uint32_t start,
 						  uint32_t offs, uint32_t image_size, void *dst)
 {
 	int size = image_size;
@@ -95,7 +95,7 @@ static void read_skip_bad(char *record, uint32_t start,
 			offs += CONFIG_SYS_NAND_BLOCK_SIZE;
 			continue;
 		}
-			
+
 		to = roundup(offs, CONFIG_SYS_NAND_BLOCK_SIZE);
 		bound = (to == offs) ? CONFIG_SYS_NAND_BLOCK_SIZE : (to - offs);
 		len = bound > size ? size : bound;
@@ -156,7 +156,7 @@ void spl_nand_load_image(void)
 	int *src __attribute__((unused));
 	int *dst __attribute__((unused));
 
-	debug("spl: nand - using hw ecc\n");
+	debug("spl: nand, hw ecc\n");
 	nand_init();
 
 	/*use CONFIG_SYS_TEXT_BASE as temporary storage area */

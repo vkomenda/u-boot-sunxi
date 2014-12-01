@@ -37,7 +37,11 @@ DECLARE_GLOBAL_DATA_PTR;
  */
 u32 spl_boot_device(void)
 {
+#ifdef CONFIG_NAND
+	return BOOT_DEVICE_NAND;
+#else
 	return BOOT_DEVICE_MMC1;
+#endif
 }
 
 /* No confirmation data available in SPL yet. Hardcode bootmode */
