@@ -446,6 +446,44 @@ static int scan_block_fast(struct mtd_info *mtd, struct nand_bbt_descr *bd,
 	return 0;
 }
 
+/* Check the oob markers on the first and the last pages of a block.  The
+ * initial position offs is assumed to point at the start of the first page of
+ * the block. */
+static int scan_first_last_pages(struct mtd_info *mtd, loff_t offs,
+				 uint8_t *buf)
+{
+	struct mtd_oob_ops ops;
+	int ret, i;
+	loff_t page_offsets[2] = {offs, offs + mtd->erasesize - mtd->writesize};
+
+	ops.ooblen = mtd->oobsize;
+	ops.oobbuf = buf;
+	ops.ooboffs = 0;
+	ops.datbuf = NULL;
+	ops.mode = MTD_OPS_PLACE_OOB;
+
+	for (i = 0; i < 2; i++) {
+		ret = mtd_read_oob(mtd, page_offsets[i], &ops);
+		if (ret && !mtd_is_bitflip_or_eccerr(ret)) {
+			debug("OOB read ERROR %d at offset %012llx\n",
+			      ret, page_offsets[i]);
+			return ret;
+		}
+
+		/* Check the first byte of the spare area of the page. */
+		if (buf[0] == 0xFF) {
+			debug("Good BB marker #%d at offset %012llx\n",
+			      i + 1, page_offsets[i]);
+		}
+		else {
+			debug("Bad BB marker #%d at offset %012llx: %.2x (%.2x)\n",
+			      i + 1, page_offsets[i], buf[0], buf[1]);
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
 /**
  * create_bbt - [GENERIC] Create a bad block table by scanning the device
  * @mtd: MTD device structure
@@ -468,6 +506,8 @@ static int create_bbt(struct mtd_info *mtd, uint8_t *buf,
 
 	pr_info("Scanning device for bad blocks\n");
 
+	/* FIXME: numpages is redundant if both NAND_BBT_SCANLASTPAGE and
+	 * NAND_BBT_SCAN2NDPAGE bits are set. */
 	if (bd->options & NAND_BBT_SCANALLPAGES)
 		numpages = 1 << (this->bbt_erase_shift - this->page_shift);
 	else if (bd->options & NAND_BBT_SCAN2NDPAGE)
@@ -505,7 +545,8 @@ static int create_bbt(struct mtd_info *mtd, uint8_t *buf,
 		from = (loff_t)startblock << (this->bbt_erase_shift - 1);
 	}
 
-	if (this->bbt_options & NAND_BBT_SCANLASTPAGE)
+	if ( (bd->options & NAND_BBT_SCANLASTPAGE) &&
+	    !(bd->options & NAND_BBT_SCAN2NDPAGE))
 		from += mtd->erasesize - (mtd->writesize * numpages);
 
 	for (i = startblock; i < numblocks;) {
@@ -516,9 +557,20 @@ static int create_bbt(struct mtd_info *mtd, uint8_t *buf,
 		if (bd->options & NAND_BBT_SCANALLPAGES)
 			ret = scan_block_full(mtd, bd, from, buf, readlen,
 					      scanlen, numpages);
-		else
+		else if (bd->options & NAND_BBT_SCANLASTPAGE) {
+			/* Scan the first and the last pages. */
+			if (bd->options & NAND_BBT_SCAN2NDPAGE)
+				ret = scan_first_last_pages(mtd, from, buf);
+			/* Scan len successive pages at the end of the block. */
+			else
+				ret = scan_block_fast(mtd, bd, from, buf, numpages);
+		}
+		/* Scan len successive pages starting from the first one. */
+		else if (bd->options & NAND_BBT_SCAN2NDPAGE)
 			ret = scan_block_fast(mtd, bd, from, buf, numpages);
-
+		else
+			ret = -EINVAL;  /* Scan behaviour undefined for given
+					 * options. */
 		if (ret < 0)
 			return ret;
 

@@ -25,7 +25,7 @@ int sunxi_nand_spl_block_size;
 static int nfc_isbad(uint32_t offs)
 {
 	uint32_t page_addr;
-	uint32_t cfg = NAND_CMD_READ0 | NFC_SEQ | NFC_SEND_CMD1 | NFC_DATA_TRANS | NFC_SEND_ADR | 
+	uint32_t cfg = NAND_CMD_READ0 | NFC_SEQ | NFC_SEND_CMD1 | NFC_DATA_TRANS | NFC_SEND_ADR |
 		NFC_SEND_CMD2 | ((5 - 1) << 16) | NFC_WAIT_FLAG | (0 << 30);
 
 	offs &= ~(sunxi_nand_spl_block_size - 1);
@@ -177,7 +177,7 @@ static int nfc_init(void)
 		return -ENODEV;
 	}
 
-	// set final NFC clock freq
+	// TODO: remove this upper bound
 	if (chip_param->clock_freq > 30)
 		chip_param->clock_freq = 30;
 	sunxi_nand_set_clock((int)chip_param->clock_freq * 1000000);
@@ -249,7 +249,7 @@ int nand_spl_load_image(uint32_t offs, unsigned int image_size, void *dst)
 	int size = image_size;
 	uint32_t to, len, bound;
 
-	debug("nand spl load image from %x to %x size %x\n", offs, dst, size);
+	debug("nand spl load image from %x to %p size %x\n", offs, dst, size);
 
 	while (size > 0) {
 		if (nand_spl_isbad(offs)) {
@@ -257,7 +257,7 @@ int nand_spl_load_image(uint32_t offs, unsigned int image_size, void *dst)
 			offs += sunxi_nand_spl_block_size;
 			continue;
 		}
-			
+
 		to = roundup(offs, sunxi_nand_spl_block_size);
 		bound = (to == offs) ? sunxi_nand_spl_block_size : (to - offs);
 		len = bound > size ? size : bound;
@@ -284,5 +284,3 @@ void nand_deselect(void)
 {
 
 }
-
-

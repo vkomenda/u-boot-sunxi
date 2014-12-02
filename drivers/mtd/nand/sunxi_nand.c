@@ -19,10 +19,11 @@
 
 #include "sunxi_nand.h"
 
+#define NAND_READ_BUFFER_SIZE (16384 + 2048)
 static int read_offset = 0, write_offset = 0;
-static int buffer_size = 8192 + 1024;
-static char write_buffer[8192 + 1024] __attribute__((aligned(4)));
-static char read_buffer[8192 + 1024] __attribute__((aligned(4)));
+static int buffer_size = NAND_READ_BUFFER_SIZE;
+static char write_buffer[NAND_READ_BUFFER_SIZE] __attribute__((aligned(4)));
+static char read_buffer[NAND_READ_BUFFER_SIZE] __attribute__((aligned(4)));
 static struct nand_ecclayout sunxi_ecclayout;
 static int program_column = -1, program_page = -1;
 
@@ -31,7 +32,7 @@ static void print_nand_clock(void)
 	struct sunxi_ccm_reg *const ccm =
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 	debug("============= nand clock ==============\n");
-	debug("nand_sclk_cfg=%08x ahb_gate0=%08x\n", 
+	debug("nand_sclk_cfg=%08x ahb_gate0=%08x\n",
 		  readl(&ccm->nand_sclk_cfg), readl(&ccm->ahb_gate0));
 }
 
@@ -40,7 +41,7 @@ static void print_nand_gpio(void)
 	struct sunxi_gpio *pio =
 	    &((struct sunxi_gpio_reg *)SUNXI_PIO_BASE)->gpio_bank[2];
 	debug("============= nand gpio ===============\n");
-	debug("cfg0=%08x cfg1=%08x cfg2=%08x\n", 
+	debug("cfg0=%08x cfg1=%08x cfg2=%08x\n",
 		  readl(&pio->cfg[0]), readl(&pio->cfg[1]), readl(&pio->cfg[2]));
 }
 
@@ -110,7 +111,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 			do_enable_ecc = 1;
 			debug("cmdfunc read %d %d\n", column, page_addr);
 		}
-			
+
 		//access NFC internal RAM by DMA bus
 		writel(readl(NFC_REG_CTL) | NFC_RAM_METHOD, NFC_REG_CTL);
 		// if the size is smaller than NFC_REG_SECTOR_NUM, read command won't finish
@@ -137,7 +138,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		addr_cycle = 3;
 		//debug("cmdfunc earse block %d\n", page_addr);
 		break;
-	case NAND_CMD_SEQIN:	
+	case NAND_CMD_SEQIN:
 		program_column = column;
 		program_page = page_addr;
 		write_offset = 0;
@@ -175,7 +176,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		cfg |= NFC_SEND_CMD2 | NFC_DATA_SWAP_METHOD | NFC_ACCESS_DIR;
 		cfg |= 2 << 30;
 		if (column != 0) {
-			debug("cmdfunc program %d %d with %x %x %x\n", column, page_addr, 
+			debug("cmdfunc program %d %d with %x %x %x\n", column, page_addr,
 					 write_buffer[0], write_buffer[1], write_buffer[2]);
 		}
 		break;
@@ -295,7 +296,7 @@ static void nfc_write_buf(struct mtd_info *mtd, const uint8_t *buf, int len)
 static void nfc_read_buf(struct mtd_info *mtd, uint8_t *buf, int len)
 {
 	if (read_offset + len > buffer_size) {
-		error("read too much offset=%d len=%d buffer size=%d\n", 
+		error("read too much offset=%d len=%d buffer size=%d\n",
 				 read_offset, len, buffer_size);
 		return;
 	}
@@ -349,7 +350,7 @@ static void enter_1k_mode(struct save_1k_mode *save)
 	save->ctl = ctl;
 	ctl &= ~NFC_PAGE_SIZE;
 	writel(ctl, NFC_REG_CTL);
-	
+
 	ctl = readl(NFC_REG_ECC_CTL);
 	save->ecc_ctl = ctl;
 	set_ecc_mode(8);
@@ -369,7 +370,7 @@ static void exit_1k_mode(struct save_1k_mode *save)
 void nfc_read_page1k(uint32_t page_addr, void *buff)
 {
 	struct save_1k_mode save;
-	uint32_t cfg = NAND_CMD_READ0 | NFC_SEQ | NFC_SEND_CMD1 | NFC_DATA_TRANS | NFC_SEND_ADR | 
+	uint32_t cfg = NAND_CMD_READ0 | NFC_SEQ | NFC_SEND_CMD1 | NFC_DATA_TRANS | NFC_SEND_ADR |
 		NFC_SEND_CMD2 | ((5 - 1) << 16) | NFC_WAIT_FLAG | NFC_DATA_SWAP_METHOD | (2 << 30);
 
 	nfc_select_chip(NULL, 0);
@@ -410,8 +411,8 @@ void nfc_read_page1k(uint32_t page_addr, void *buff)
 void nfc_write_page1k(uint32_t page_addr, void *buff)
 {
 	struct save_1k_mode save;
-	uint32_t cfg = NAND_CMD_SEQIN | NFC_SEQ | NFC_SEND_CMD1 | NFC_DATA_TRANS | NFC_SEND_ADR | 
-		NFC_SEND_CMD2 | ((5 - 1) << 16) | NFC_WAIT_FLAG | NFC_DATA_SWAP_METHOD | NFC_ACCESS_DIR | 
+	uint32_t cfg = NAND_CMD_SEQIN | NFC_SEQ | NFC_SEND_CMD1 | NFC_DATA_TRANS | NFC_SEND_ADR |
+		NFC_SEND_CMD2 | ((5 - 1) << 16) | NFC_WAIT_FLAG | NFC_DATA_SWAP_METHOD | NFC_ACCESS_DIR |
 		(2 << 30);
 
 	nfc_select_chip(NULL, 0);
@@ -454,10 +455,10 @@ static void print_nand_nfc(void)
 {
 	debug("=============== nand bfc ===============\n");
 	debug("CTL=%08x ST=%08x INT=%08x TIMING_CTL=%08x TIMING_CFG=%08x\n",
-		  readl(NFC_REG_CTL), readl(NFC_REG_ST), readl(NFC_REG_INT), 
+		  readl(NFC_REG_CTL), readl(NFC_REG_ST), readl(NFC_REG_INT),
 		  readl(NFC_REG_TIMING_CTL), readl(NFC_REG_TIMING_CFG));
 	debug("ADDR_LOW=%08x ADDR_HIGH=%08x SECTOR_NUM=%08x CNT=%08x\n",
-		  readl(NFC_REG_ADDR_LOW), readl(NFC_REG_ADDR_HIGH), 
+		  readl(NFC_REG_ADDR_LOW), readl(NFC_REG_ADDR_HIGH),
 		  readl(NFC_REG_SECTOR_NUM), readl(NFC_REG_CNT));
 	debug("CMD=%08x RCMD=%08x WCMD=%08x ECC_CTL=%08x ECC_ST=%08x\n",
 		  readl(NFC_REG_CMD), readl(NFC_REG_RCMD_SET), readl(NFC_REG_WCMD_SET),
@@ -577,8 +578,8 @@ int board_nand_init(struct nand_chip *nand)
 	nand->ecc.size = (1U << chip_param->page_shift);
 	nand->ecc.bytes = 0;
 
-	// set buffer size
-	buffer_size = (1U << chip_param->page_shift) + 1024;
+	// set buffer size: page size + max oob size
+	buffer_size = (1U << chip_param->page_shift) + 2048;
 
 	// setup DMA
 	dma_hdle = DMA_Request(DMAC_DMATYPE_DEDICATED);
@@ -607,4 +608,3 @@ int board_nand_init(struct nand_chip *nand)
 
 	return 0;
 }
-
