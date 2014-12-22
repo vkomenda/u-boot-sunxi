@@ -2741,29 +2741,6 @@ static int parse_hynix_sizes(struct mtd_info *mtd, u8 sz)
 	default:
 		mtd->oobsize = 640;  break;
 	}
-/* FIXME for older Hynix chips:
-	switch (oob_code) {
-	case 0:
-		mtd->oobsize = 128;
-		break;
-	case 1:
-		mtd->oobsize = 224;
-		break;
-	case 2:
-		mtd->oobsize = 448;
-		break;
-	case 3:
-		mtd->oobsize = 64;
-		break;
-	case 4:
-		mtd->oobsize = 32;
-		break;
-	case 5:
-	default:
-		mtd->oobsize = 16;
-		break;
-	}
-*/
 	mtd->erasesize = 0x100000 << (erase_code & 0x3);
 
 	return 0;

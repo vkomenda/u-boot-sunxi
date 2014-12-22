@@ -188,7 +188,7 @@
 	"ipaddr=192.168.0.114\0"											\
 																		\
 	"mtdids=nand0=mtd-nand-sunxi.0\0"									\
-	"mtdparts=mtdparts=mtd-nand-sunxi.0:1M(spl),4M(uboot),3M(env),9M(packimg),8M(kernel),64M(initfs),-(rootfs)\0" \
+	"mtdparts=mtdparts=mtd-nand-sunxi.0:4M(spl),4M(uboot),4M(env),16M(packimg),16M(kernel),64M(initfs),-(rootfs)\0" \
 																		\
 	"loadaddr=0x44000000\0"												\
 	"fl_spl=nand erase.part spl && "									\
@@ -343,7 +343,7 @@
 	"kernel_loadaddr=0x47ffffc0\0"									\
 	"console=ttyS0,115200n8\0"										\
 	"nandargs=setenv bootargs console=${console} init=/linuxrc "	\
-	"mtdparts=mtd-nand-sunxi.0:17M@0x800000,64M,- ubi.mtd=2 "		\
+	"mtdparts=mtd-nand-sunxi.0:32M@0xC00000,64M,- ubi.mtd=2 "		\
 	"root=ubi0:rootfs rootwait rootfstype=ubifs "					\
 	"root2=10:/dev/blockrom1,squashfs,/init "						\
 	"quiet\0"														\

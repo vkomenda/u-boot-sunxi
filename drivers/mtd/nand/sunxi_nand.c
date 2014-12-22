@@ -535,8 +535,8 @@ int board_nand_init(struct nand_chip *nand)
 	}
 
 	// set final NFC clock freq
-	if (chip_param->clock_freq > 30)
-		chip_param->clock_freq = 30;
+//	if (chip_param->clock_freq > 30)
+//		chip_param->clock_freq = 30;
 	sunxi_nand_set_clock((int)chip_param->clock_freq * 1000000);
 	debug("set final clock freq to %dMHz\n", (int)chip_param->clock_freq);
 

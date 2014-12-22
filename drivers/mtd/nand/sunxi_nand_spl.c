@@ -249,7 +249,7 @@ int nand_spl_load_image(uint32_t offs, unsigned int image_size, void *dst)
 	int size = image_size;
 	uint32_t to, len, bound;
 
-	debug("nand spl load image from %x to %p size %x\n", offs, dst, size);
+	pr_info("nand spl load image from %x to %p size %x\n", offs, dst, size);
 
 	while (size > 0) {
 		if (nand_spl_isbad(offs)) {
