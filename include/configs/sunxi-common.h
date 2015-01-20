@@ -96,7 +96,7 @@
 
 #define CONFIG_ENV_IS_IN_NAND
 
-#define CONFIG_ENV_OFFSET	0x500000	/* at 5MB */
+#define CONFIG_ENV_OFFSET	0x800000	/* at 8MB */
 #define CONFIG_ENV_RANGE        0x300000
 
 #define CONFIG_SPL_NAND_SUPPORT
@@ -105,15 +105,15 @@
 #define CONFIG_SPL_NAND_DRIVERS
 #define CONFIG_SPL_DMA_SUPPORT
 
-#define CONFIG_SYS_NAND_U_BOOT_OFFS     0x100000 /* at 1MB */
+#define CONFIG_SYS_NAND_U_BOOT_OFFS     0x400000 /* at 4MB */
 
 #define CONFIG_SPL_OS_BOOT
 #define CONFIG_SYS_SPL_ARGS_ADDR        0x44000000
 
-#define CONFIG_SYS_NAND_SPL_KERNEL_OFFS 0x1100000 /* at 11MB, we don't use that */
+#define CONFIG_SYS_NAND_SPL_KERNEL_OFFS 0x1400000 /* at 20MB, we don't use that */
 
-#define CONFIG_SUNXI_PACKIMG_START      0x800000
-#define CONFIG_SUNXI_PACKIMG_END        0x1100000
+#define CONFIG_SUNXI_PACKIMG_START      0xc00000  /* at 12MB */
+#define CONFIG_SUNXI_PACKIMG_END        0x1400000 /* 8MB long */
 
 #define CONFIG_SYS_NAND_PAGE_SIZE sunxi_nand_spl_page_size
 #define CONFIG_SYS_NAND_BLOCK_SIZE sunxi_nand_spl_block_size

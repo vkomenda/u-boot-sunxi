@@ -156,7 +156,6 @@ void spl_nand_load_image(void)
 	int *src __attribute__((unused));
 	int *dst __attribute__((unused));
 
-	debug("spl: nand, hw ecc\n");
 	nand_init();
 
 	/*use CONFIG_SYS_TEXT_BASE as temporary storage area */

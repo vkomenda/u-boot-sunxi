@@ -54,6 +54,8 @@ static void nfc_read_page(uint32_t offs, void *buff)
 
 	page_addr = offs / sunxi_nand_spl_page_size;
 
+	printf("p@%x(%x)->%p\n", offs, page_addr, buff);
+
 	wait_cmdfifo_free();
 	writel(readl(NFC_REG_CTL) | NFC_RAM_METHOD, NFC_REG_CTL);
 	_dma_config_start(0, NFC_REG_IO_DATA, (__u32)buff, sunxi_nand_spl_page_size);
@@ -235,6 +237,8 @@ int nand_spl_isbad(uint32_t offs)
 
 void nand_spl_read(uint32_t offs, int size, void *dst)
 {
+	printf("i@%x(%x)->%p\n", offs, size, dst);
+
 	// offs must be page aligned
 	while (size > 0) {
 		nfc_read_page(offs, dst);
@@ -249,9 +253,8 @@ int nand_spl_load_image(uint32_t offs, unsigned int image_size, void *dst)
 	int size = image_size;
 	uint32_t to, len, bound;
 
-	pr_info("nand spl load image from %x to %p size %x\n", offs, dst, size);
-
 	while (size > 0) {
+		puts(">");
 		if (nand_spl_isbad(offs)) {
 			debug("nand spl block %x is bad\n", offs);
 			offs += sunxi_nand_spl_block_size;
