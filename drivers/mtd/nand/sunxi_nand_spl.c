@@ -25,6 +25,7 @@ int sunxi_nand_spl_block_size;
 static int nfc_isbad(uint32_t offs)
 {
 	uint32_t page_addr;
+	uint8_t marker;
 	uint32_t cfg = NAND_CMD_READ0 | NFC_SEQ | NFC_SEND_CMD1 | NFC_DATA_TRANS | NFC_SEND_ADR |
 		NFC_SEND_CMD2 | ((5 - 1) << 16) | NFC_WAIT_FLAG | (0 << 30);
 
@@ -41,8 +42,10 @@ static int nfc_isbad(uint32_t offs)
 	writel(cfg, NFC_REG_CMD);
 	wait_cmdfifo_free();
 	wait_cmd_finish();
-	if (readb(NFC_RAM0_BASE) != 0xff)
+	if ((marker = readb(NFC_RAM0_BASE)) != 0xff) {
+		printf("B=%x", marker);
 		return 1;
+	}
 	return 0;
 }
 
@@ -54,7 +57,7 @@ static void nfc_read_page(uint32_t offs, void *buff)
 
 	page_addr = offs / sunxi_nand_spl_page_size;
 
-	printf("p@%x(%x)->%p\n", offs, page_addr, buff);
+	printf("p@%x/%x->%p\n", offs, page_addr, buff);
 
 	wait_cmdfifo_free();
 	writel(readl(NFC_REG_CTL) | NFC_RAM_METHOD, NFC_REG_CTL);
@@ -64,14 +67,16 @@ static void nfc_read_page(uint32_t offs, void *buff)
 	writel(0x00e00530, NFC_REG_RCMD_SET);
 	writel(1024, NFC_REG_CNT);
 	writel(sunxi_nand_spl_page_size / 1024, NFC_REG_SECTOR_NUM);
+	enable_random();
 	enable_ecc(1);
 	writel(cfg, NFC_REG_CMD);
 	_wait_dma_end();
 	wait_cmdfifo_free();
 	wait_cmd_finish();
 	disable_ecc();
+	disable_random();
 	if (check_ecc(sunxi_nand_spl_page_size / 1024) < 0)
-		error("can't correct bit error of page read at offset %x\n", offs);
+		printf("can't correct bit error of page read at offset %x\n", offs);
 }
 
 static void nfc_reset(void)
@@ -169,13 +174,17 @@ static int nfc_init(void)
 		if (find) {
 			chip_param = &nand_chip_param[i];
 			debug("find nand chip in sunxi database\n");
+			for (j = 0; j < nand_chip_param[i].id_len; j++) {
+				printf(" %x", nand_chip_param[i].id[j]);
+			}
+			printf("\nECC str=%x\n", nand_chip_param[i].ecc_mode);
 			break;
 		}
 	}
 
 	// not find
 	if (chip_param == NULL) {
-		error("can't find nand chip in sunxi database\n");
+		printf("can't find nand chip in sunxi database\n");
 		return -ENODEV;
 	}
 
@@ -201,7 +210,7 @@ static int nfc_init(void)
 
 	// Page size
 	if (chip_param->page_shift > 14 || chip_param->page_shift < 10) {
-		error("Flash chip page shift out of range %d\n", chip_param->page_shift);
+		printf("Flash chip page shift out of range %d\n", chip_param->page_shift);
 		return -EINVAL;
 	}
 	// 0 for 1K
@@ -221,7 +230,7 @@ static int nfc_init(void)
 	// setup DMA
 	dma_hdle = DMA_Request(DMAC_DMATYPE_DEDICATED);
 	if (dma_hdle == 0) {
-		error("request DMA fail\n");
+		printf("DMA request failed\n");
 		return -ENODEV;
 	}
 
@@ -253,13 +262,18 @@ int nand_spl_load_image(uint32_t offs, unsigned int image_size, void *dst)
 	int size = image_size;
 	uint32_t to, len, bound;
 
+	printf("l:%x(%x#%x)->%p\n", offs, image_size,
+	       sunxi_nand_spl_block_size, dst);
+
 	while (size > 0) {
 		puts(">");
+		/*
 		if (nand_spl_isbad(offs)) {
 			debug("nand spl block %x is bad\n", offs);
 			offs += sunxi_nand_spl_block_size;
 			continue;
 		}
+		*/
 
 		to = roundup(offs, sunxi_nand_spl_block_size);
 		bound = (to == offs) ? sunxi_nand_spl_block_size : (to - offs);

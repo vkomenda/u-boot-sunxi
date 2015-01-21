@@ -64,8 +64,9 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 {
 	int i;
 	uint32_t cfg = command;
-	int read_size, write_size, do_enable_ecc = 0;
+	int read_size, write_size, do_enable_ecc = 0, do_enable_random = 0;
 	int addr_cycle, wait_rb_flag, byte_count, sector_count;
+
 	addr_cycle = wait_rb_flag = byte_count = sector_count = 0;
 
 	//debug("command %x ...\n", command);
@@ -109,6 +110,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 			sector_count = mtd->writesize / 1024;
 			read_size = mtd->writesize;
 			do_enable_ecc = 1;
+			do_enable_random = 1;
 			debug("cmdfunc read %d %d\n", column, page_addr);
 		}
 
@@ -163,9 +165,10 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 				writel(*((unsigned int *)(write_buffer + mtd->writesize) + i), NFC_REG_USER_DATA(i));
 		}
 		else {
-			error("program unsupported column %d %d\n", column, page_addr);
+			printf("program unsupported column %d %d\n", column, page_addr);
 			return;
 		}
+		do_enable_random = 1;
 
 		//access NFC internal RAM by DMA bus
 		writel(readl(NFC_REG_CTL) | NFC_RAM_METHOD, NFC_REG_CTL);
@@ -184,7 +187,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		byte_count = 1;
 		break;
 	default:
-		error("unknown command\n");
+		printf("unknown command\n");
 		return;
 	}
 
@@ -224,6 +227,9 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	// set sectors
 	if (sector_count)
 		writel(sector_count, NFC_REG_SECTOR_NUM);
+
+	if (do_enable_random)
+		enable_random();
 
 	// enable ecc
 	if (do_enable_ecc)
@@ -266,6 +272,9 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	if (do_enable_ecc)
 		disable_ecc();
 
+	if (do_enable_random)
+		disable_random();
+
 	//debug("done\n");
 
 	// read write offset
@@ -285,8 +294,8 @@ static int nfc_dev_ready(struct mtd_info *mtd)
 static void nfc_write_buf(struct mtd_info *mtd, const uint8_t *buf, int len)
 {
 	if (write_offset + len > buffer_size) {
-		error("write too much offset=%d len=%d buffer size=%d\n",
-				 write_offset, len, buffer_size);
+		printf("write buffer overfill offs=%d len=%d size=%d\n",
+		       write_offset, len, buffer_size);
 		return;
 	}
 	memcpy(write_buffer + write_offset, buf, len);
@@ -296,8 +305,8 @@ static void nfc_write_buf(struct mtd_info *mtd, const uint8_t *buf, int len)
 static void nfc_read_buf(struct mtd_info *mtd, uint8_t *buf, int len)
 {
 	if (read_offset + len > buffer_size) {
-		error("read too much offset=%d len=%d buffer size=%d\n",
-				 read_offset, len, buffer_size);
+		printf("read buffer overfill offs=%d len=%d size=%d\n",
+		       read_offset, len, buffer_size);
 		return;
 	}
 	memcpy(buf, read_buffer + read_offset, len);
@@ -523,20 +532,24 @@ int board_nand_init(struct nand_chip *nand)
 		}
 		if (find) {
 			chip_param = &nand_chip_param[i];
-			debug("find nand chip in sunxi database\n");
+			debug("found nand chip in sunxi database\n");
+			for (j = 0; j < nand_chip_param[i].id_len; j++) {
+				printf(" %x", nand_chip_param[i].id[j]);
+			}
+			printf("\n ECC strength=%x\n", nand_chip_param[i].ecc_mode);
 			break;
 		}
 	}
 
 	// not find
 	if (chip_param == NULL) {
-		error("can't find nand chip in sunxi database\n");
+		printf("can't find nand chip in sunxi database\n");
 		return -ENODEV;
 	}
 
 	// set final NFC clock freq
-//	if (chip_param->clock_freq > 30)
-//		chip_param->clock_freq = 30;
+	if (chip_param->clock_freq > 30)
+		chip_param->clock_freq = 30;
 	sunxi_nand_set_clock((int)chip_param->clock_freq * 1000000);
 	debug("set final clock freq to %dMHz\n", (int)chip_param->clock_freq);
 
@@ -556,7 +569,7 @@ int board_nand_init(struct nand_chip *nand)
 
 	// Page size
 	if (chip_param->page_shift > 14 || chip_param->page_shift < 10) {
-		error("Flash chip page shift out of range %d\n", (int)chip_param->page_shift);
+		printf("Flash chip page shift out of range %d\n", (int)chip_param->page_shift);
 		return -EINVAL;
 	}
 	// 0 for 1K
@@ -577,6 +590,8 @@ int board_nand_init(struct nand_chip *nand)
 	nand->ecc.layout = &sunxi_ecclayout;
 	nand->ecc.size = (1U << chip_param->page_shift);
 	nand->ecc.bytes = 0;
+	nand->ecc.strength = 40;
+	nand->ecc.size = 1024;
 
 	// set buffer size: page size + max oob size
 	buffer_size = (1U << chip_param->page_shift) + 2048;
@@ -584,7 +599,7 @@ int board_nand_init(struct nand_chip *nand)
 	// setup DMA
 	dma_hdle = DMA_Request(DMAC_DMATYPE_DEDICATED);
 	if (dma_hdle == 0) {
-		error("request DMA fail\n");
+		printf("DMA request failed\n");
 		return -ENODEV;
 	}
 	print_nand_dma(dma_hdle);

@@ -49,7 +49,7 @@ void sunxi_nand_set_clock(int hz)
 	setbits_le32(&ccm->nand_sclk_cfg, (1 << 31));
 	/* open clock for nand and DMA*/
 	setbits_le32(&ccm->ahb_gate0, (1 << AHB_GATE_OFFSET_NAND) | (1 << AHB_GATE_OFFSET_DMA));
-	debug("NAND Clock: PLL5=%dHz, divid_ratio=%d, n=%d m=%d, clock=%dHz (target %dHz\n", 
+	debug("NAND Clock: PLL5=%dHz, divid_ratio=%d, n=%d m=%d, clock=%dHz (target %dHz\n",
 		  clock, nand_clk_divid_ratio, div_n, div_m, (clock>>div_n)/(div_m+1), hz);
 }
 
@@ -114,35 +114,38 @@ void enable_ecc(int pipline)
 int check_ecc(int eblock_cnt)
 {
 	int i;
-    int ecc_mode;
+	int ecc_mode;
 	int max_ecc_bit_cnt = 16;
 	int cfg, corrected = 0;
 
 	ecc_mode = (readl(NFC_REG_ECC_CTL) & NFC_ECC_MODE) >> NFC_ECC_MODE_SHIFT;
+
+	printf("ECC=%x", ecc_mode);
+
 	if(ecc_mode == 0)
 		max_ecc_bit_cnt = 16;
-	if(ecc_mode == 1)
+	else if(ecc_mode == 1)
 		max_ecc_bit_cnt = 24;
-	if(ecc_mode == 2)
+	else if(ecc_mode == 2)
 		max_ecc_bit_cnt = 28;
-	if(ecc_mode == 3)
+	else if(ecc_mode == 3)
 		max_ecc_bit_cnt = 32;
-	if(ecc_mode == 4)
+	else if(ecc_mode == 4)
 		max_ecc_bit_cnt = 40;
-	if(ecc_mode == 5)
+	else if(ecc_mode == 5)
 		max_ecc_bit_cnt = 48;
-	if(ecc_mode == 6)
+	else if(ecc_mode == 6)
 		max_ecc_bit_cnt = 56;
-    if(ecc_mode == 7)
+	else if(ecc_mode == 7)
 		max_ecc_bit_cnt = 60;
-    if(ecc_mode == 8)
+	else if(ecc_mode == 8)
 		max_ecc_bit_cnt = 64;
 
 	//check ecc error
 	cfg = readl(NFC_REG_ECC_ST) & 0xffff;
 	for (i = 0; i < eblock_cnt; i++) {
 		if (cfg & (1<<i)) {
-			error("ECC too many error at %d\n", i);
+			printf("ECC too many errors at %d\n", i);
 			return -1;
 		}
 	}
@@ -250,8 +253,3 @@ __s32 _wait_dma_end(void)
 
 	return 0;
 }
-
-
-
-
-
