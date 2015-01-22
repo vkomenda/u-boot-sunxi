@@ -20,6 +20,8 @@ int packimg_read(nand_info_t *nand, uint32_t nand_off, uint32_t nand_size)
 	struct pack_entry *pe;
 	uint32_t offs = nand_off, crc;
 
+	debug("packimg read offs=%x size=%x\n", nand_off, nand_size);
+
 	if ((nand_off & (nand->erasesize - 1)) || (nand_size & (nand->erasesize - 1))) {
 		printf("offset %x and size %x must be block aligned\n", nand_off, nand_size);
 		return -1;
@@ -69,7 +71,7 @@ int packimg_read(nand_info_t *nand, uint32_t nand_off, uint32_t nand_size)
 	return -1;
 }
 
-int packimg_write(nand_info_t *nand, uint32_t nand_off, uint32_t nand_size, uint32_t mem_off, 
+int packimg_write(nand_info_t *nand, uint32_t nand_off, uint32_t nand_size, uint32_t mem_off,
 				  uint32_t mem_size, uint32_t max_copy)
 {
 	int err;
@@ -126,4 +128,3 @@ out:
 		return -1;
 	}
 }
-

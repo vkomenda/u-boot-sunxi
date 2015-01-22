@@ -110,10 +110,12 @@
 #define CONFIG_SPL_OS_BOOT
 #define CONFIG_SYS_SPL_ARGS_ADDR        0x44000000
 
-#define CONFIG_SYS_NAND_SPL_KERNEL_OFFS 0x1400000 /* at 20MB, we don't use that */
+#define CONFIG_SYS_NAND_SPL_KERNEL_OFFS 0x1c00000 /* at 28MB, SPL doesn't use that */
 
 #define CONFIG_SUNXI_PACKIMG_START      0xc00000  /* at 12MB */
-#define CONFIG_SUNXI_PACKIMG_END        0x1400000 /* 8MB long */
+#define CONFIG_SUNXI_PACKIMG_END        0x1c00000 /* 16MB long */
+
+#define CONFIG_SUNXI_INITRD_OFFS        0x2c00000 /* at 44MB, unused, for reference */
 
 #define CONFIG_SYS_NAND_PAGE_SIZE sunxi_nand_spl_page_size
 #define CONFIG_SYS_NAND_BLOCK_SIZE sunxi_nand_spl_block_size
@@ -182,35 +184,45 @@
 #define RUN_BOOT_RAM	""
 #endif
 
-#define SHARE_BOOT_ENV													\
-	"ethaddr=44:37:e6:28:3b:80\0"										\
-	"serverip=192.168.0.10\0"											\
-	"ipaddr=192.168.0.114\0"											\
-																		\
-	"mtdids=nand0=mtd-nand-sunxi.0\0"									\
+/*
+	"mtdids=nand0=mtd-nand-sunxi.0\0"				\
 	"mtdparts=mtdparts=mtd-nand-sunxi.0:4M(spl),4M(uboot),4M(env),16M(packimg),16M(kernel),64M(initfs),-(rootfs)\0" \
-																		\
-	"loadaddr=0x44000000\0"												\
-	"fl_spl=nand erase.part spl && "									\
-	"  nand write.1k ${loadaddr} 0 ${filesize} && "						\
-	"  nand write.1k ${loadaddr} 0x10000 ${filesize}\0"					\
+									\
+	"loadaddr=0x44000000\0"						\
+	"fl_spl=nand erase.part spl && "				\
+	"  nand write.1k ${loadaddr} 0 ${filesize} && "			\
+	"  nand write.1k ${loadaddr} 0x10000 ${filesize}\0"		\
 	"fl_uboot=nand erase.part uboot && nand write ${loadaddr} uboot ${filesize}\0" \
 	"fl_env=nand erase.part env && nand write ${loadaddr} env ${filesize}\0" \
 	"fl_packimg=nand packimg write.part packimg ${loadaddr} ${filesize} 5\0" \
 	"fl_kernel=nand erase.part kernel && nand write ${loadaddr} kernel ${filesize}\0" \
 	"fl_initfs=nand erase.part initfs && nand write ${loadaddr} initfs ${filesize}\0" \
-	"fl_rootfs=nand erase.part rootfs && "								\
-	"  ubi part rootfs && "												\
-	"  ubi create rootfs 0x8000000 && "									\
-	"  ubi write ${loadaddr} rootfs ${filesize}\0"						\
-																		\
-	"tf_spl=tftp ${loadaddr} sunxi-spl.bin && run fl_spl\0"				\
-	"tf_uboot=tftp ${loadaddr} u-boot.bin && run fl_uboot\0"			\
-	"tf_env=tftp ${loadaddr} em6000.env && run fl_env\0"				\
-	"tf_packimg=tftp ${loadaddr} pack.img && run fl_packimg\0"			\
-	"tf_kernel=tftp ${loadaddr} uImage && run fl_kernel\0"				\
-	"tf_initfs=tftp ${loadaddr} initfs.img && run fl_initfs\0"			\
-	"tf_rootfs=tftp ${loadaddr} rootfs.img && run fl_rootfs\0"			\
+	"fl_rootfs=nand erase.part rootfs && "				\
+	"  ubi part rootfs && "						\
+	"  ubi create rootfs 0x8000000 && "				\
+	"  ubi write ${loadaddr} rootfs ${filesize}\0"			\
+	"tf_spl=tftp ${loadaddr} sunxi-spl.bin && run fl_spl\0"		\
+	"tf_uboot=tftp ${loadaddr} u-boot.bin && run fl_uboot\0"	\
+	"tf_env=tftp ${loadaddr} em6000.env && run fl_env\0"		\
+	"tf_packimg=tftp ${loadaddr} pack.img && run fl_packimg\0"	\
+	"tf_kernel=tftp ${loadaddr} uImage && run fl_kernel\0"		\
+	"tf_initfs=tftp ${loadaddr} initfs.img && run fl_initfs\0"	\
+	"tf_rootfs=tftp ${loadaddr} rootfs.img && run fl_rootfs\0"	\
+*/
+
+#define SHARE_BOOT_ENV							\
+	"serverip=172.16.0.91\0"					\
+	"netmask=255.255.255.0\0"					\
+	"dnsip=172.16.0.6\0"						\
+	"gatewayip=172.16.0.10\0"					\
+	"hostname=sunxi\0"						\
+	"ethaddr=02:93:0a:80:91:e2\0"					\
+	"bootcmd_stable=dhcp; tftp 0x43000000 sunxi-stable/script.bin;"	\
+	" tftp 0x48000000 sunxi-stable/uImage; bootm 0x48000000\0"	\
+	"bootargs_nfs=console=ttyS0,115200 root=/dev/nfs"		\
+	" nfsroot=172.16.0.91:/var/nfsexport/root"			\
+	" ip=:${serverip}:${gatewayip}:${netmask}:${hostname}:eth0\0"	\
+	""
 
 #ifdef CONFIG_MMC
 
@@ -324,6 +336,9 @@
 #if defined(CONFIG_NAND)
 /* NAND Bootscript */
 #define CONFIG_BOOTCOMMAND						\
+	"run nandboot"
+/*
+#define CONFIG_BOOTCOMMAND						\
 	"if run loadbootenv; then "					\
 	"echo Loaded environment from ${bootenv};"	\
 	"env import -t ${scriptaddr} ${filesize};"	\
@@ -337,25 +352,27 @@
 	"source ${scriptaddr};"						\
 	"fi;"										\
 	"run setargs boot_mmc;"						\
+*/
 
-
-#define CONFIG_EXTRA_ENV_SETTINGS									\
-	"kernel_loadaddr=0x47ffffc0\0"									\
-	"console=ttyS0,115200n8\0"										\
-	"nandargs=setenv bootargs console=${console} init=/linuxrc "	\
-	"mtdparts=mtd-nand-sunxi.0:32M@0xC00000,64M,- ubi.mtd=2 "		\
-	"root=ubi0:rootfs rootwait rootfstype=ubifs "					\
-	"root2=10:/dev/blockrom1,squashfs,/init "						\
-	"quiet\0"														\
-	"nandboot=run nandargs; "										\
-	"nand packimg read.part packimg; "								\
-	"nand read ${kernel_loadaddr} kernel 0x500000; "				\
-	"bootm ${kernel_loadaddr}\0"									\
-	"bootcmd=run nandboot\0"										\
-	"bootdelay=5\0"													\
-	"cleanenv=nand erase.part env\0"								\
+#define CONFIG_EXTRA_ENV_SETTINGS					\
+	"bootdelay=5\0"							\
+	"script_loadaddr=0x43000000\0"					\
+	"kernel_loadaddr=0x41000000\0"					\
+	"initrd_loadaddr=0x45000000\0"					\
+	"console=ttyS0,115200\0"					\
+	"nandargs=setenv bootargs console=${console} "			\
+	"quiet\0"							\
+	"nandboot=run nandargs; "					\
+	"nand read ${script_loadaddr} packimg 0xc00000; "		\
+	"nand read ${kernel_loadaddr} kernel 0x1c00000; "		\
+	"nand read ${initrd_loadaddr} initrd 0x2c00000; "		\
+	"bootm ${initrd_loadaddr} ${kernel_loadaddr}\0"			\
+	"bootcmd=run nandboot\0"					\
 	SHARE_BOOT_ENV
 
+/*
+	"cleanenv=nand erase.part env\0"				\
+*/
 #endif
 
 #define CONFIG_SYS_BOOT_GET_CMDLINE
