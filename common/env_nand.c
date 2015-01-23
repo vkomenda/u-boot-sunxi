@@ -253,6 +253,7 @@ int readenv(size_t offset, u_char *buf)
 
 	while (amount_loaded < CONFIG_ENV_SIZE && offset < end) {
 		if (nand_block_isbad(&nand_info[0], offset)) {
+			debug("readenv: bad block @ 0x%x\n", offset);
 			offset += blocksize;
 		} else {
 			char_ptr = &buf[amount_loaded];
@@ -266,6 +267,7 @@ int readenv(size_t offset, u_char *buf)
 		}
 	}
 
+	debug("readenv: amount loaded 0x%x\n", amount_loaded);
 	if (amount_loaded != CONFIG_ENV_SIZE)
 		return 1;
 
