@@ -21,7 +21,7 @@
  */
 void hang(void)
 {
-	debug("HANG\n");
+	puts("HANG\n");
 #if !defined(CONFIG_SPL_BUILD) || (defined(CONFIG_SPL_LIBCOMMON_SUPPORT) && \
 		defined(CONFIG_SPL_SERIAL_SUPPORT))
 	puts("### ERROR ### Please RESET the board ###\n");

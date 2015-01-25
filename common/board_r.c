@@ -940,7 +940,7 @@ void board_init_r(gd_t *new_gd, ulong dest_addr)
 	int i;
 #endif
 
-	debug("board_init_r: dest=%llx\n", dest_addr);
+	debug("board_init_r: dest=%lx\n", dest_addr);
 
 #ifndef CONFIG_X86
 	gd = new_gd;

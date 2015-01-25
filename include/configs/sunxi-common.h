@@ -222,6 +222,29 @@
 	"bootargs_nfs=console=ttyS0,115200 root=/dev/nfs"		\
 	" nfsroot=172.16.0.91:/var/nfsexport/root"			\
 	" ip=:${serverip}:${gatewayip}:${netmask}:${hostname}:eth0\0"	\
+	"mtdids=nand0=mtd-nand-sunxi.0\0"				\
+	"mtdparts=mtdparts=mtd-nand-sunxi.0:4M(SPL),4M(U-Boot),4M(uEnv),16M(packimg),16M(kernel),256M(initramfs),-(rootfs)\0" \
+	"loadaddr=0x44000000\0"						\
+	"fl_spl=nand erase.part SPL && "				\
+	"  nand write.1k ${loadaddr} 0 ${filesize} && "			\
+	"  nand write.1k ${loadaddr} 0x10000 ${filesize}\0"		\
+	"fl_uboot=nand erase.part U-Boot && nand write ${loadaddr} U-Boot ${filesize}\0" \
+	"fl_env=nand erase.part uEnv && nand write ${loadaddr} uEnv ${filesize}\0" \
+	"fl_packimg=nand packimg write.part packimg ${loadaddr} ${filesize} 5\0" \
+	"fl_kernel=nand erase.part kernel && nand write ${loadaddr} kernel ${filesize}\0" \
+	"fl_initramfs=nand erase.part initramfs && nand write ${loadaddr} initramfs ${filesize}\0" \
+	"fl_rootfs=nand erase.part rootfs && "				\
+	"  ubi part rootfs && "						\
+	"  ubi create rootfs 0x8000000 && "				\
+	"  ubi write ${loadaddr} rootfs ${filesize}\0"			\
+									\
+	"tf_spl=tftp ${loadaddr} sunxi-spl.bin && run fl_spl\0"		\
+	"tf_uboot=tftp ${loadaddr} u-boot.bin && run fl_uboot\0"	\
+	"tf_env=tftp ${loadaddr} em6000.env && run fl_env\0"		\
+	"tf_packimg=tftp ${loadaddr} pack.img && run fl_packimg\0"	\
+	"tf_kernel=tftp ${loadaddr} uImage && run fl_kernel\0"		\
+	"tf_initramfs=tftp ${loadaddr} initramfs.img && run fl_initramfs\0" \
+	"tf_rootfs=tftp ${loadaddr} rootfs.img && run fl_rootfs\0"	\
 	""
 
 #ifdef CONFIG_MMC

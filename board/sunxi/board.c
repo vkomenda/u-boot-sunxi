@@ -1,3 +1,4 @@
+
 /*
  * (C) Copyright 2012-2013 Henrik Nordstrom <henrik@henriknordstrom.net>
  * (C) Copyright 2013 Luke Kenneth Casson Leighton <lkcl@lkcl.net>
@@ -124,8 +125,6 @@ static void mmc_pinmux_setup(int sdc)
 
 int board_mmc_init(bd_t *bis)
 {
-	debug("board_mmc_init\n");
-
 	mmc_pinmux_setup(CONFIG_MMC_SUNXI_SLOT);
 	sunxi_mmc_init(CONFIG_MMC_SUNXI_SLOT);
 #if !defined (CONFIG_SPL_BUILD) && defined (CONFIG_MMC_SUNXI_SLOT_EXTRA)
@@ -139,8 +138,6 @@ int board_mmc_init(bd_t *bis)
 
 void i2c_init_board(void)
 {
-	debug("i2c_init_board\n");
-
 	sunxi_gpio_set_cfgpin(SUNXI_GPB(0), SUNXI_GPB0_TWI0);
 	sunxi_gpio_set_cfgpin(SUNXI_GPB(1), SUNXI_GPB0_TWI0);
 	clock_twi_onoff(0, 1);

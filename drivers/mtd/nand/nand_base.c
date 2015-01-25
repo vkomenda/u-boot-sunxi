@@ -3442,6 +3442,8 @@ int nand_scan(struct mtd_info *mtd, int maxchips)
 {
 	int ret;
 
+	printf("nand_scan: maxchips=%d\n", maxchips);
+
 	ret = nand_scan_ident(mtd, maxchips, NULL);
 	if (!ret)
 		ret = nand_scan_tail(mtd);

@@ -567,7 +567,7 @@ static int do_nand(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		if (argc < 3) {
 			putc('\n');
 			if (dev < 0 || dev >= CONFIG_SYS_MAX_NAND_DEVICE)
-				puts("no devices available\n");
+				printf("device %d is not available\n", dev);
 			else
 				nand_print_and_set_info(dev);
 			return 0;
@@ -593,7 +593,7 @@ static int do_nand(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	 */
 	if (dev < 0 || dev >= CONFIG_SYS_MAX_NAND_DEVICE ||
 	    !nand_info[dev].name) {
-		puts("\nno devices available\n");
+		printf("\ndevice %d is not available\n", dev);
 		return 1;
 	}
 	nand = &nand_info[dev];
@@ -793,7 +793,7 @@ static int do_nand(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		} else if (!strcmp(s, ".1k")) {
 			int nand1k_read(char *buff, loff_t offs, size_t count);
 			int nand1k_write(const char *buff, loff_t offs, size_t count);
-			
+
 			if (read)
 				nand1k_read((char *)addr, off, size);
 			else

@@ -668,8 +668,8 @@ int nand_read_skip_bad(nand_info_t *nand, loff_t offset, size_t *length,
 	u_char *p_buffer = buffer;
 	int need_skip;
 
-	debug("nand_read_skip_bad: offs=%llx len=%x act=%p lim=%llx buf=%p\n",
-	      offset, *length, actual, lim, buffer);
+	printf("nand_read_skip_bad: offs=%llx len=%x act=%p lim=%llx buf=%p\n",
+	       offset, *length, actual, lim, buffer);
 
 	if ((offset & (nand->writesize - 1)) != 0) {
 		printf("Attempt to read non page-aligned data\n");

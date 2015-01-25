@@ -484,6 +484,8 @@ static void print_nand_regs(void)
 
 int board_nand_init(struct nand_chip *nand)
 {
+	static int chip_nr = 0;
+	struct mtd_info* mtd;
 	u32 ctl;
 	int i, j;
 	uint8_t id[8];
@@ -534,9 +536,8 @@ int board_nand_init(struct nand_chip *nand)
 			chip_param = &nand_chip_param[i];
 			debug("found nand chip in sunxi database\n");
 			for (j = 0; j < nand_chip_param[i].id_len; j++) {
-				printf(" %x", nand_chip_param[i].id[j]);
+				printf("%x", nand_chip_param[i].id[j]);
 			}
-			printf("\n ECC strength=%x\n", nand_chip_param[i].ecc_mode);
 			break;
 		}
 	}
@@ -548,8 +549,8 @@ int board_nand_init(struct nand_chip *nand)
 	}
 
 	// set final NFC clock freq
-	if (chip_param->clock_freq > 30)
-		chip_param->clock_freq = 30;
+	if (chip_param->clock_freq > 20)
+		chip_param->clock_freq = 20;
 	sunxi_nand_set_clock((int)chip_param->clock_freq * 1000000);
 	debug("set final clock freq to %dMHz\n", (int)chip_param->clock_freq);
 
@@ -585,11 +586,13 @@ int board_nand_init(struct nand_chip *nand)
 	// setup ECC layout
 	sunxi_ecclayout.eccbytes = 0;
 	sunxi_ecclayout.oobavail = (1U << chip_param->page_shift) / 1024 * 4 - 2;
-	sunxi_ecclayout.oobfree->offset = 1;
+	sunxi_ecclayout.oobfree->offset = 2;
 	sunxi_ecclayout.oobfree->length = (1U << chip_param->page_shift) / 1024 * 4 - 2;
 	nand->ecc.layout = &sunxi_ecclayout;
-	nand->ecc.size = (1U << chip_param->page_shift);
+	nand->ecc.size = 1U << chip_param->page_shift;
 	nand->ecc.bytes = 0;
+
+	// FIXME: derive from the ID in nand_base.c:parse_hynix_sizes()
 	nand->ecc.strength = 40;
 	nand->ecc.size = 1024;
 
@@ -616,6 +619,10 @@ int board_nand_init(struct nand_chip *nand)
 	nand->write_buf = nfc_write_buf;
 	nand->waitfunc = nfc_wait;
 	nand->bbt_options = NAND_BBT_USE_FLASH;
+	nand->options = 0;
+
+	mtd = &nand_info[chip_nr++];
+	mtd->priv = nand;
 
 	debug("board_nand_init finish\n");
 
