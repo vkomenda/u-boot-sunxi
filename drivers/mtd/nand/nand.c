@@ -82,8 +82,6 @@ static void nand_init_chip(int i)
 	ulong base_addr = base_address[i];
 	int maxchips = CONFIG_SYS_NAND_MAX_CHIPS;
 
-	printf("nand_init_chip: i=%d\n", i);
-
 	if (maxchips < 1)
 		maxchips = 1;
 

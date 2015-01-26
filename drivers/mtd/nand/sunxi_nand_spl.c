@@ -163,6 +163,7 @@ static int nfc_init(void)
 
 	// find chip
 	nand_chip_param = sunxi_get_nand_chip_param(id[0]);
+	printf("Sunxi NAND: ");
 	for (i = 0; nand_chip_param[i].id_len; i++) {
 		int find = 1;
 		for (j = 0; j < nand_chip_param[i].id_len; j++) {
@@ -173,10 +174,10 @@ static int nfc_init(void)
 		}
 		if (find) {
 			chip_param = &nand_chip_param[i];
-			debug("found nand chip in sunxi database\n");
 			for (j = 0; j < nand_chip_param[i].id_len; j++) {
-				printf(" %x", nand_chip_param[i].id[j]);
+				printf("%x", nand_chip_param[i].id[j]);
 			}
+			printf(" (ECC mode %d)\n", nand_chip_param[i].ecc_mode);
 			break;
 		}
 	}
@@ -217,7 +218,7 @@ static int nfc_init(void)
 	writel(ctl, NFC_REG_CTL);
 
 	writel(0xff, NFC_REG_TIMING_CFG);
-	writel(1U << chip_param->page_shift, NFC_REG_SPARE_AREA);
+	writel((1U << chip_param->page_shift) + 2, NFC_REG_SPARE_AREA);
 
 	// disable random
 	disable_random();

@@ -120,8 +120,6 @@ int check_ecc(int eblock_cnt)
 
 	ecc_mode = (readl(NFC_REG_ECC_CTL) & NFC_ECC_MODE) >> NFC_ECC_MODE_SHIFT;
 
-	printf("ECC=%x", ecc_mode);
-
 	if(ecc_mode == 0)
 		max_ecc_bit_cnt = 16;
 	else if(ecc_mode == 1)
@@ -145,7 +143,7 @@ int check_ecc(int eblock_cnt)
 	cfg = readl(NFC_REG_ECC_ST) & 0xffff;
 	for (i = 0; i < eblock_cnt; i++) {
 		if (cfg & (1<<i)) {
-			printf("ECC too many errors at %d\n", i);
+			printf("ECC too many errors in sector %d\n", i);
 			return -1;
 		}
 	}

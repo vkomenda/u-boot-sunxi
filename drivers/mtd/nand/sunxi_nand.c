@@ -491,8 +491,6 @@ int board_nand_init(struct nand_chip *nand)
 	uint8_t id[8];
 	struct nand_chip_param *nand_chip_param, *chip_param = NULL;
 
-	debug("board_nand_init start\n");
-
 	// set init clock
 	sunxi_nand_set_clock(NAND_MAX_CLOCK);
 
@@ -538,6 +536,7 @@ int board_nand_init(struct nand_chip *nand)
 			for (j = 0; j < nand_chip_param[i].id_len; j++) {
 				printf("%x", nand_chip_param[i].id[j]);
 			}
+			printf(" - ");
 			break;
 		}
 	}
@@ -578,7 +577,7 @@ int board_nand_init(struct nand_chip *nand)
 	writel(ctl, NFC_REG_CTL);
 
 	writel(0xff, NFC_REG_TIMING_CFG);
-	writel(1U << chip_param->page_shift, NFC_REG_SPARE_AREA);
+	writel((1U << chip_param->page_shift) + 2, NFC_REG_SPARE_AREA);
 
 	// disable random
 	disable_random();
@@ -589,7 +588,7 @@ int board_nand_init(struct nand_chip *nand)
 	sunxi_ecclayout.oobfree->offset = 2;
 	sunxi_ecclayout.oobfree->length = (1U << chip_param->page_shift) / 1024 * 4 - 2;
 	nand->ecc.layout = &sunxi_ecclayout;
-	nand->ecc.size = 1U << chip_param->page_shift;
+//	nand->ecc.size = 1U << chip_param->page_shift;
 	nand->ecc.bytes = 0;
 
 	// FIXME: derive from the ID in nand_base.c:parse_hynix_sizes()
@@ -623,10 +622,6 @@ int board_nand_init(struct nand_chip *nand)
 
 	mtd = &nand_info[chip_nr++];
 	mtd->priv = nand;
-
-	debug("board_nand_init finish\n");
-
-	//print_nand_regs();
 
 	return 0;
 }
