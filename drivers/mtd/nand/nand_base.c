@@ -2719,8 +2719,6 @@ static int parse_hynix_sizes(struct mtd_info *mtd, struct nand_chip* chip,
 	u8 plane_ecc = id_data[4];
 	u8 oob_code, erase_code, ecc;
 
-	printf("parse_hynix_sizes\n");
-
 	mtd->writesize = 2048 << (sizes & 0x03);
 	sizes >>= 2;
 	oob_code = sizes & 0x03;
@@ -2730,9 +2728,9 @@ static int parse_hynix_sizes(struct mtd_info *mtd, struct nand_chip* chip,
 	oob_code |= (sizes & 0x01) << 2;
 	sizes >>= 1;
 	erase_code |= (sizes & 0x01) << 2;
-	pr_info("Hynix codes: page size %d, block size %d, oob size %d\n",
-		mtd->writesize, erase_code, oob_code);
-	if (oob_code >= 0x4 || erase_code < 0x4)
+	printf("Hynix codes: page size %d, block size %d, oob size %d\n",
+	       mtd->writesize, erase_code, oob_code);
+	if (/* oob_code >= 0x4 || */ erase_code < 0x4)
 		return -EINVAL;
 
 	if (density == 0xde /* 8GiB */ ||
@@ -2814,8 +2812,6 @@ static void nand_decode_ext_id(struct mtd_info *mtd, struct nand_chip *chip,
 				u8 id_data[8], int *busw)
 {
 	int extid, id_len;
-
-	printf("nand_decode_ext_id\n");
 
 	/* The 3rd id byte holds MLC / multichip data */
 	chip->cellinfo = id_data[2];
@@ -2965,8 +2961,6 @@ static const struct nand_flash_dev *nand_get_flash_type(struct mtd_info *mtd,
 	const char *name;
 	int i, maf_idx;
 	u8 id_data[8];
-
-	printf("nand_get_flash_type\n");
 
 	/* Select the device */
 	chip->select_chip(mtd, 0);

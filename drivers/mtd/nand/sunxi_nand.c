@@ -484,7 +484,6 @@ static void print_nand_regs(void)
 
 int board_nand_init(struct nand_chip *nand)
 {
-	static int chip_nr = 0;
 	struct mtd_info* mtd;
 	u32 ctl;
 	int i, j;
@@ -591,7 +590,7 @@ int board_nand_init(struct nand_chip *nand)
 //	nand->ecc.size = 1U << chip_param->page_shift;
 	nand->ecc.bytes = 0;
 
-	// FIXME: derive from the ID in nand_base.c:parse_hynix_sizes()
+	// Temporary. Derived from the ID in nand_base.c:parse_hynix_sizes().
 	nand->ecc.strength = 40;
 	nand->ecc.size = 1024;
 
@@ -620,7 +619,7 @@ int board_nand_init(struct nand_chip *nand)
 	nand->bbt_options = NAND_BBT_USE_FLASH;
 	nand->options = 0;
 
-	mtd = &nand_info[chip_nr++];
+	mtd = &nand_info[0];
 	mtd->priv = nand;
 
 	return 0;
