@@ -2775,7 +2775,6 @@ static int parse_hynix_sizes(struct mtd_info *mtd, struct nand_chip* chip,
 	ecc = (plane_ecc >> 4) & 0x7;
 	switch (ecc) {
 	case 0:
-	default:
 		chip->ecc.strength = 0;
 		break;
 	case 1:
@@ -2795,6 +2794,8 @@ static int parse_hynix_sizes(struct mtd_info *mtd, struct nand_chip* chip,
 		break;
 	case 6:
 		chip->ecc.strength = 60;
+		break;
+	default:
 		break;
 	}
 	chip->ecc.size  = 1024; /* mtd->writesize ? */
