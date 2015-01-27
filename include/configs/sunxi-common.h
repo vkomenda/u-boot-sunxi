@@ -383,13 +383,12 @@
 	"kernel_loadaddr=0x41000000\0"					\
 	"initrd_loadaddr=0x45000000\0"					\
 	"console=ttyS0,115200\0"					\
-	"nandargs=setenv bootargs console=${console} "			\
-	"quiet\0"							\
+	"nandargs=setenv bootargs console=${console} initrd=/linuxrc\0"	\
 	"nandboot=run nandargs; "					\
-	"nand read ${script_loadaddr} packimg 0xc00000; "		\
-	"nand read ${kernel_loadaddr} kernel 0x1c00000; "		\
-	"nand read ${initrd_loadaddr} initrd 0x2c00000; "		\
-	"bootm ${initrd_loadaddr} ${kernel_loadaddr}\0"			\
+	"nand read ${script_loadaddr} 0xc00000 0xa000; "		\
+	"nand read ${kernel_loadaddr} 0x1c00000 0x426000; "		\
+	"nand read ${initrd_loadaddr} 0x2c00000 0x1014000; "		\
+	"bootm ${kernel_loadaddr} ${initrd_loadaddr}\0"			\
 	"bootcmd=run nandboot\0"					\
 	SHARE_BOOT_ENV
 
