@@ -824,6 +824,72 @@ static int nand_wait(struct mtd_info *mtd, struct nand_chip *chip)
 }
 
 /**
+ * nand_page_is_empty - check wether a NAND page contains only FFs
+ * @mtd:	mtd info
+ * @data:	data buffer
+ * @oob:	oob buffer
+ *
+ * Reads the data stored in the databuf buffer and check if it contains only
+ * FFs.
+ *
+ * Return true if it does else return false.
+ */
+bool nand_page_is_empty(struct mtd_info *mtd, void *data, void *oob)
+{
+	u8 *buf;
+	int length;
+	u32 pattern = 0xffffffff;
+	int bitflips = 0;
+	int cnt;
+
+	buf = data;
+	length = mtd->writesize;
+	while (length) {
+		cnt = length < sizeof(pattern) ? length : sizeof(pattern);
+		if (memcmp(&pattern, buf, cnt)) {
+			int i;
+			for (i = 0; i < cnt * 8; i++) {
+				if (!(buf[i / 8] &
+				      (1 << (i % 8)))) {
+					bitflips++;
+					if (bitflips > mtd->ecc_strength)
+						return false;
+				}
+			}
+		}
+
+		buf += sizeof(pattern);
+		length -= sizeof(pattern);
+	}
+
+	if (!oob)
+		/* checking the OOB is not required */
+		return true;
+
+	buf = oob;
+	length = mtd->oobsize;
+	while (length) {
+		cnt = length < sizeof(pattern) ? length : sizeof(pattern);
+		if (memcmp(&pattern, buf, cnt)) {
+			int i;
+			for (i = 0; i < cnt * 8; i++) {
+				if (!(buf[i / 8] &
+				      (1 << (i % 8)))) {
+					bitflips++;
+					if (bitflips > mtd->ecc_strength)
+						return false;
+				}
+			}
+		}
+
+		buf += sizeof(pattern);
+		length -= sizeof(pattern);
+	}
+
+	return true;
+}
+
+/**
  * nand_read_page_raw - [INTERN] read raw page data without ecc
  * @mtd: mtd info structure
  * @chip: nand chip info structure

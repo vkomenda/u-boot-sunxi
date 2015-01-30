@@ -41,6 +41,9 @@ extern void nand_release(struct mtd_info *mtd);
 /* Internal helper for board drivers which need to override command function */
 extern void nand_wait_ready(struct mtd_info *mtd);
 
+/* Page emptiness check on a buffer */
+extern bool nand_page_is_empty(struct mtd_info *mtd, void *data, void *oob);
+
 /*
  * This constant declares the max. oobsize / page, which
  * is supported now. If you add a chip with bigger oobsize/page
