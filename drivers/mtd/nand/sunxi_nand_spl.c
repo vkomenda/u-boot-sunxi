@@ -136,7 +136,7 @@ static int nfc_init(void)
 	u32 ctl;
 	int i, j;
 	uint8_t id[8];
-	struct nand_chip_param *nand_chip_param, *chip_param = NULL;
+	struct nand_chip_param *chip_cur, *chip = NULL;
 
 	// set init clock
 	sunxi_nand_set_clock(NAND_MAX_CLOCK);
@@ -155,7 +155,7 @@ static int nfc_init(void)
 	writel(ctl, NFC_REG_CTL);
 
 	// serial_access_mode = 1
-	ctl = (1 << 8);
+	ctl = 1 << 8;
 	writel(ctl, NFC_REG_TIMING_CTL);
 
 	// reset nand chip
@@ -164,34 +164,32 @@ static int nfc_init(void)
 	// read nand chip id
 	nfc_readid(id);
 
-	// find chip
-	nand_chip_param = sunxi_get_nand_chip_param(id[0]);
-	printf("Sunxi NAND:");
-	for (i = 0; nand_chip_param[i].id_len && !chip_param; i++) {
-		for (j = 0; j < nand_chip_param[i].id_len; j++) {
-			if (id[j] != nand_chip_param[i].id[j])
+	printf("NAND:");
+	/* Get parameters of the chip in the database of the driver. */
+	chip_cur = sunxi_get_nand_chip_param(id[0]);
+	for (i = 0; !chip && chip_cur[i].id_len; i++)
+		for (j = 0; j < chip_cur[i].id_len; j++) {
+			if (id[j] != chip_cur[i].id[j])
+				/* ID mismatch */
 				break;
-			else {
-				chip_param = &nand_chip_param[i];
-				break;
-			}
+			else if (j == chip_cur[i].id_len - 1)
+				/* all bytes of the ID matched */
+				chip = &chip_cur[i];
 		}
-	}
-	if (!chip_param) {
-		printf(" unknown chip\n");
+
+	if (!chip) {
+		printf(" unknown chip");
 		return -ENODEV;
 	}
-	else {
-		for (j = 0; j < chip_param->id_len; j++) {
-			printf(" %x", chip_param->id[j]);
-		}
-//		printf(" (ECC mode %d)\n", chip_param->ecc_mode);
-	}
+	else
+		for (j = 0; j < chip->id_len; j++)
+			printf(" %x", chip->id[j]);
+	printf("\n");
 
 	// TODO: remove this upper bound
-	if (chip_param->clock_freq > 20)
-		chip_param->clock_freq = 20;
-	sunxi_nand_set_clock((int)chip_param->clock_freq * 1000000);
+	if (chip->clock_freq > 30)
+		chip->clock_freq = 30;
+	sunxi_nand_set_clock((int)chip->clock_freq * 1000000);
 
 	// disable interrupt
 	writel(0, NFC_REG_INT);
@@ -201,31 +199,32 @@ static int nfc_init(void)
 	// set ECC mode
 	ctl = readl(NFC_REG_ECC_CTL);
 	ctl &= ~NFC_ECC_MODE;
-	ctl |= (unsigned int)chip_param->ecc_mode << NFC_ECC_MODE_SHIFT;
+	ctl |= (unsigned int)chip->ecc_mode << NFC_ECC_MODE_SHIFT;
 	writel(ctl, NFC_REG_ECC_CTL);
 
 	// enable NFC
 	ctl = NFC_EN;
 
 	// Page size
-	if (chip_param->page_shift > 14 || chip_param->page_shift < 10) {
+	if (chip->page_shift > 14 || chip->page_shift < 10) {
 //		printf("Page shift out of range\n");
 		return -EINVAL;
 	}
 	// 0 for 1K
-	ctl |= ((chip_param->page_shift - 10) & 0xf) << 8;
+	ctl |= ((chip->page_shift - 10) & 0xf) << 8;
 	writel(ctl, NFC_REG_CTL);
 
 	writel(0xff, NFC_REG_TIMING_CFG);
-	writel((1U << chip_param->page_shift) + BB_MARK_SIZE,
+	writel((1U << chip->page_shift) + BB_MARK_SIZE,
 	       NFC_REG_SPARE_AREA);
 
-	// disable random
 	disable_random();
 
 	// record size
-	sunxi_nand_spl_page_size = 1U << chip_param->page_shift;
-	sunxi_nand_spl_block_size = 1U << (chip_param->page_per_block_shift + chip_param->page_shift);
+	sunxi_nand_spl_page_size =
+		1U << chip->page_shift;
+	sunxi_nand_spl_block_size =
+		1U << (chip->page_per_block_shift + chip->page_shift);
 
 	// setup DMA
 	dma_hdle = DMA_Request(DMAC_DMATYPE_DEDICATED);
@@ -285,7 +284,7 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 			if (nand_spl_page_is_empty(dst))
 				memset(dst, 0xff, sunxi_nand_spl_page_size);
 			else
-				printf("ECC error @offset %x\n", offs);
+				printf("ECC error @ %x\n", offs);
 		}
 		offs += sunxi_nand_spl_page_size;
 		dst += sunxi_nand_spl_page_size;
