@@ -21,6 +21,25 @@
 
 int dma_hdle;
 
+static const uint16_t random_seed[128] = {
+	0x2b75, 0x0bd0, 0x5ca3, 0x62d1, 0x1c93, 0x07e9, 0x2162, 0x3a72,
+	0x0d67, 0x67f9, 0x1be7, 0x077d, 0x032f, 0x0dac, 0x2716, 0x2436,
+	0x7922, 0x1510, 0x3860, 0x5287, 0x480f, 0x4252, 0x1789, 0x5a2d,
+	0x2a49, 0x5e10, 0x437f, 0x4b4e, 0x2f45, 0x216e, 0x5cb7, 0x7130,
+	0x2a3f, 0x60e4, 0x4dc9, 0x0ef0, 0x0f52, 0x1bb9, 0x6211, 0x7a56,
+	0x226d, 0x4ea7, 0x6f36, 0x3692, 0x38bf, 0x0c62, 0x05eb, 0x4c55,
+	0x60f4, 0x728c, 0x3b6f, 0x2037, 0x7f69, 0x0936, 0x651a, 0x4ceb,
+	0x6218, 0x79f3, 0x383f, 0x18d9, 0x4f05, 0x5c82, 0x2912, 0x6f17,
+	0x6856, 0x5938, 0x1007, 0x61ab, 0x3e7f, 0x57c2, 0x542f, 0x4f62,
+	0x7454, 0x2eac, 0x7739, 0x42d4, 0x2f90, 0x435a, 0x2e52, 0x2064,
+	0x637c, 0x66ad, 0x2c90, 0x0bad, 0x759c, 0x0029, 0x0986, 0x7126,
+	0x1ca7, 0x1605, 0x386a, 0x27f5, 0x1380, 0x6d75, 0x24c3, 0x0f8e,
+	0x2b7a, 0x1418, 0x1fd1, 0x7dc1, 0x2d8e, 0x43af, 0x2267, 0x7da3,
+	0x4e3d, 0x1338, 0x50db, 0x454d, 0x764d, 0x40a3, 0x42e6, 0x262b,
+	0x2d2e, 0x1aea, 0x2e17, 0x173d, 0x3a6e, 0x71bf, 0x25f9, 0x0a5d,
+	0x7c57, 0x0fbe, 0x46ce, 0x4939, 0x6b17, 0x37bb, 0x3e91, 0x76db
+};
+
 void sunxi_nand_set_clock(int hz)
 {
 	struct sunxi_ccm_reg *const ccm =
@@ -56,10 +75,11 @@ void sunxi_nand_set_clock(int hz)
 void sunxi_nand_set_gpio(void)
 {
 	struct sunxi_gpio *pio =
-	    &((struct sunxi_gpio_reg *)SUNXI_PIO_BASE)->gpio_bank[2];
-	writel(0x22222222, &pio->cfg[0]);
-	writel(0x22222222, &pio->cfg[1]);
-	writel(0x22222222, &pio->cfg[2]);
+		&((struct sunxi_gpio_reg *)SUNXI_PIO_BASE)->gpio_bank[2];
+	int i;
+
+	for (i = 0; i < 3; i++)
+		writel(0x22222222, &pio->cfg[i]);
 }
 
 void select_rb(int rb)
@@ -72,14 +92,26 @@ void select_rb(int rb)
 	writel(ctl, NFC_REG_CTL);
 }
 
-void enable_random(void)
+void enable_random_preset(void)
 {
 	uint32_t ctl;
 	ctl = readl(NFC_REG_ECC_CTL);
 	ctl |= NFC_RANDOM_EN;
 	ctl &= ~NFC_RANDOM_DIRECTION;
 	ctl &= ~NFC_RANDOM_SEED;
-	ctl |= (0x4a80 << 16);
+	ctl |= 0x4a80 << 16;
+	writel(ctl, NFC_REG_ECC_CTL);
+}
+
+void enable_random(uint32_t page)
+{
+	uint32_t ctl;
+
+	ctl = readl(NFC_REG_ECC_CTL);
+	ctl |= NFC_RANDOM_EN;
+	ctl &= ~NFC_RANDOM_DIRECTION;
+	ctl &= ~NFC_RANDOM_SEED;
+	ctl |= (uint32_t) random_seed[page % 128] << 16;
 	writel(ctl, NFC_REG_ECC_CTL);
 }
 
@@ -91,10 +123,10 @@ void disable_random(void)
 	writel(ctl, NFC_REG_ECC_CTL);
 }
 
-void enable_ecc(int pipline)
+void enable_ecc(int pipeline)
 {
 	uint32_t cfg = readl(NFC_REG_ECC_CTL);
-	if (pipline)
+	if (pipeline)
 		cfg |= NFC_ECC_PIPELINE;
 	else
 		cfg &= (~NFC_ECC_PIPELINE) & 0xffffffff;
@@ -120,30 +152,42 @@ int check_ecc(int eblock_cnt)
 
 	ecc_mode = (readl(NFC_REG_ECC_CTL) & NFC_ECC_MODE) >> NFC_ECC_MODE_SHIFT;
 
-	if(ecc_mode == 0)
-		max_ecc_bit_cnt = 16;
-	else if(ecc_mode == 1)
-		max_ecc_bit_cnt = 24;
-	else if(ecc_mode == 2)
-		max_ecc_bit_cnt = 28;
-	else if(ecc_mode == 3)
-		max_ecc_bit_cnt = 32;
-	else if(ecc_mode == 4)
+	switch (ecc_mode) {
+	case 4:
 		max_ecc_bit_cnt = 40;
-	else if(ecc_mode == 5)
+		break;
+	case 5:
 		max_ecc_bit_cnt = 48;
-	else if(ecc_mode == 6)
+		break;
+	case 6:
 		max_ecc_bit_cnt = 56;
-	else if(ecc_mode == 7)
+		break;
+	case 7:
 		max_ecc_bit_cnt = 60;
-	else if(ecc_mode == 8)
+		break;
+	case 8:
 		max_ecc_bit_cnt = 64;
+		break;
+	case 3:
+		max_ecc_bit_cnt = 32;
+		break;
+	case 2:
+		max_ecc_bit_cnt = 28;
+		break;
+	case 1:
+		max_ecc_bit_cnt = 24;
+		break;
+	case 0:
+	default:
+		max_ecc_bit_cnt = 16;
+		break;
+	}
 
 	//check ecc error
 	cfg = readl(NFC_REG_ECC_ST) & 0xffff;
 	for (i = 0; i < eblock_cnt; i++) {
 		if (cfg & (1<<i)) {
-			printf("ECC too many errors in sector %d\n", i);
+			/* ECC error in sector i */
 			return -1;
 		}
 	}

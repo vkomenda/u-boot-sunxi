@@ -156,6 +156,9 @@ extern int dma_hdle;
 
 #define NAND_MAX_CLOCK (10 * 1000000)
 
+/* Offset in the OOB area reserved for the bad block mark. */
+#define BB_MARK_SIZE 2
+
 void sunxi_nand_set_clock(int hz);
 void sunxi_nand_set_gpio(void);
 
@@ -190,9 +193,10 @@ static inline int check_rb_ready(int rb)
 }
 
 void select_rb(int rb);
-void enable_random(void);
+void enable_random_preset(void);
+void enable_random(uint32_t page);
 void disable_random(void);
-void enable_ecc(int pipline);
+void enable_ecc(int pipeline);
 int check_ecc(int eblock_cnt);
 void set_ecc_mode(int mode);
 void disable_ecc(void);
@@ -203,4 +207,3 @@ void nfc_read_page1k(uint32_t page_addr, void *buff);
 void nfc_write_page1k(uint32_t page_addr, void *buff);
 
 #endif
-

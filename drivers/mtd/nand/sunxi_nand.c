@@ -27,36 +27,14 @@ static char read_buffer[NAND_READ_BUFFER_SIZE] __attribute__((aligned(4)));
 static struct nand_ecclayout sunxi_ecclayout;
 static int program_column = -1, program_page = -1;
 
-static void print_nand_clock(void)
-{
-	struct sunxi_ccm_reg *const ccm =
-		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
-	debug("============= nand clock ==============\n");
-	debug("nand_sclk_cfg=%08x ahb_gate0=%08x\n",
-		  readl(&ccm->nand_sclk_cfg), readl(&ccm->ahb_gate0));
-}
-
-static void print_nand_gpio(void)
-{
-	struct sunxi_gpio *pio =
-	    &((struct sunxi_gpio_reg *)SUNXI_PIO_BASE)->gpio_bank[2];
-	debug("============= nand gpio ===============\n");
-	debug("cfg0=%08x cfg1=%08x cfg2=%08x\n",
-		  readl(&pio->cfg[0]), readl(&pio->cfg[1]), readl(&pio->cfg[2]));
-}
-
-/////////////////////////////////////////////////////////////////
-// NFC
-//
-
 static void nfc_select_chip(struct mtd_info *mtd, int chip)
 {
 	uint32_t ctl;
 	// A10 has 8 CE pin to support 8 flash chips
-    ctl = readl(NFC_REG_CTL);
-    ctl &= ~NFC_CE_SEL;
+	ctl = readl(NFC_REG_CTL);
+	ctl &= ~NFC_CE_SEL;
 	ctl |= ((chip & 7) << 24);
-    writel(ctl, NFC_REG_CTL);
+	writel(ctl, NFC_REG_CTL);
 }
 
 static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
@@ -69,7 +47,6 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 
 	addr_cycle = wait_rb_flag = byte_count = sector_count = 0;
 
-	//debug("command %x ...\n", command);
 	wait_cmdfifo_free();
 
 	// switch to AHB
@@ -89,43 +66,35 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		byte_count = 1024;
 		wait_rb_flag = 1;
 		break;
-	case NAND_CMD_RNDOUT:
-		addr_cycle = 2;
-		writel(0xE0, NFC_REG_RCMD_SET);
-		byte_count = mtd->oobsize;
-		cfg |= NFC_SEQ | NFC_SEND_CMD2;
-		wait_rb_flag = 1;
-		break;
+	case NAND_CMD_READ0: /* Implied randomised read, see
+			      * nand_base.c:do_nand_read_ops() */
+		do_enable_ecc = 1;
+		do_enable_random = 1;
+		/* otherwise the same as a regular read */
 	case NAND_CMD_READOOB:
-	case NAND_CMD_READ0:
-		if (command == NAND_CMD_READOOB) {
-			cfg = NAND_CMD_READ0;
+	case NAND_CMD_READ1: /* Non-randomised read: this interpretation is
+			      * specific to this driver. */
+		if (command != NAND_CMD_READOOB) {
+			sector_count = mtd->writesize / 1024;
+			read_size = mtd->writesize;
+		}
+		else {
 			// sector num to read
-			sector_count = 1024 / 1024;
-			read_size = 1024;
+			sector_count = 1;  /* FIXME: get rid of it */
+			read_size = 1024;  /* FIXME: try mtd->oobsize */
 			// OOB offset
 			column += mtd->writesize;
 		}
-		else {
-			sector_count = mtd->writesize / 1024;
-			read_size = mtd->writesize;
-			do_enable_ecc = 1;
-			do_enable_random = 1;
-			debug("cmdfunc read %d %d\n", column, page_addr);
-		}
+		cfg = NAND_CMD_READ0; /* same underlying command for randomised
+				       * page, non-randomised page and OOB
+				       * reads. */
 
 		//access NFC internal RAM by DMA bus
 		writel(readl(NFC_REG_CTL) | NFC_RAM_METHOD, NFC_REG_CTL);
 		// if the size is smaller than NFC_REG_SECTOR_NUM, read command won't finish
 		// does that means the data read out (by DMA through random data output) hasn't finish?
 		_dma_config_start(0, NFC_REG_IO_DATA, (__u32)read_buffer, read_size);
-		addr_cycle = 5;
-		// RAM0 is 1K size
-		byte_count =1024;
-		wait_rb_flag = 1;
-		// 0x30 for 2nd cycle of read page
-		// 0x05+0xe0 is the random data output command
-		writel(0x00e00530, NFC_REG_RCMD_SET);
+
 		// NFC_SEND_CMD1 for the command 1nd cycle enable
 		// NFC_SEND_CMD2 for the command 2nd cycle enable
 		// NFC_SEND_CMD3 & NFC_SEND_CMD4 for NFC_READ_CMD0 & NFC_READ_CMD1
@@ -135,6 +104,19 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		// 1 - spare command?
 		// 0 - normal command
 		cfg |= 2 << 30;
+
+		addr_cycle = 5;
+		// RAM0 is 1K size
+		byte_count =1024;
+		wait_rb_flag = 1;
+
+		if (do_enable_random)
+			// 0x30 for 2nd cycle of read page
+			// 0x05+0xe0 is the random data output command
+			writel(0x00e00530, NFC_REG_RCMD_SET);
+		else
+			writel(0x00000030, NFC_REG_RCMD_SET);
+
 		break;
 	case NAND_CMD_ERASE1:
 		addr_cycle = 3;
@@ -196,16 +178,22 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		uint32_t low = 0;
 		uint32_t high = 0;
 		switch (addr_cycle) {
+		case 5:
+			high = (page_addr >> 16) & 0xff;
+		case 1:
+			low = column & 0xff;
+			break;
 		case 2:
 			low = column & 0xffff;
 			break;
 		case 3:
 			low = page_addr & 0xffffff;
 			break;
-		case 5:
-			high = (page_addr >> 16) & 0xff;
 		case 4:
 			low = (column & 0xffff) | (page_addr << 16);
+			break;
+		default:
+			error("wrong address cycle count");
 			break;
 		}
 		writel(low, NFC_REG_ADDR_LOW);
@@ -229,7 +217,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		writel(sector_count, NFC_REG_SECTOR_NUM);
 
 	if (do_enable_random)
-		enable_random();
+		enable_random(page_addr);
 
 	// enable ecc
 	if (do_enable_ecc)
@@ -245,6 +233,8 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	case NAND_CMD_PAGEPROG:
 		_wait_dma_end();
 		break;
+	default:
+		break;
 	}
 
 	// wait command send complete
@@ -258,14 +248,21 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		select_rb(0);
 		while (!check_rb_ready(0));
 		// wait rb1 ready
-		select_rb(1);
-		while (!check_rb_ready(1));
+//		select_rb(1);
+//		while (!check_rb_ready(1));
 		// select rb 0 back
-		select_rb(0);
+//		select_rb(0);
 		break;
 	case NAND_CMD_READ0:
-		for (i = 0; i < sector_count; i++)
-			*((unsigned int *)(read_buffer + mtd->writesize) + i) = readl(NFC_REG_USER_DATA(i));
+	case NAND_CMD_READ1: {
+		uint32_t* oob_start = (uint32_t*) read_buffer + mtd->writesize;
+		for (i = 0; i < sector_count; i++) {
+			uint32_t userdata = readl(NFC_REG_USER_DATA(i));
+			*(oob_start + i * 4) = userdata;
+		}
+		break;
+	}
+	default:
 		break;
 	}
 
@@ -275,9 +272,6 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	if (do_enable_random)
 		disable_random();
 
-	//debug("done\n");
-
-	// read write offset
 	read_offset = 0;
 }
 
@@ -397,8 +391,7 @@ void nfc_read_page1k(uint32_t page_addr, void *buff)
 	writel(0x00e00530, NFC_REG_RCMD_SET);
 	writel(1, NFC_REG_SECTOR_NUM);
 
-	enable_random();
-
+	enable_random_preset();
 	enable_ecc(1);
 
 	writel(cfg, NFC_REG_CMD);
@@ -409,7 +402,6 @@ void nfc_read_page1k(uint32_t page_addr, void *buff)
 
 	disable_ecc();
 	check_ecc(1);
-
 	disable_random();
 
 	exit_1k_mode(&save);
@@ -439,7 +431,7 @@ void nfc_write_page1k(uint32_t page_addr, void *buff)
 	writel(0x00008510, NFC_REG_WCMD_SET);
 	writel(1, NFC_REG_SECTOR_NUM);
 
-	enable_random();
+	enable_random_preset();
 
 	enable_ecc(1);
 
@@ -458,28 +450,57 @@ void nfc_write_page1k(uint32_t page_addr, void *buff)
 	nfc_select_chip(NULL, -1);
 }
 
-//////////////////////////////////////////////////////////////////////////////////////
-
-static void print_nand_nfc(void)
+/*
+ * Page read with hardware ECC and randomisation that takes into account empty
+ * pages and does not issue an ECC error when trying to read a correct empty
+ * page.
+ */
+static int nfc_read_page_hwecc(struct mtd_info *mtd, struct nand_chip *chip,
+			       uint8_t *buf, int oob_required, int page)
 {
-	debug("=============== nand bfc ===============\n");
-	debug("CTL=%08x ST=%08x INT=%08x TIMING_CTL=%08x TIMING_CFG=%08x\n",
-		  readl(NFC_REG_CTL), readl(NFC_REG_ST), readl(NFC_REG_INT),
-		  readl(NFC_REG_TIMING_CTL), readl(NFC_REG_TIMING_CFG));
-	debug("ADDR_LOW=%08x ADDR_HIGH=%08x SECTOR_NUM=%08x CNT=%08x\n",
-		  readl(NFC_REG_ADDR_LOW), readl(NFC_REG_ADDR_HIGH),
-		  readl(NFC_REG_SECTOR_NUM), readl(NFC_REG_CNT));
-	debug("CMD=%08x RCMD=%08x WCMD=%08x ECC_CTL=%08x ECC_ST=%08x\n",
-		  readl(NFC_REG_CMD), readl(NFC_REG_RCMD_SET), readl(NFC_REG_WCMD_SET),
-		  readl(NFC_REG_ECC_CTL), readl(NFC_REG_ECC_ST));
-	debug("SPARE_AREA=%08x\n", readl(NFC_REG_SPARE_AREA));
-}
+	int eccstatus = 0;
 
-static void print_nand_regs(void)
-{
-	print_nand_clock();
-	print_nand_gpio();
-	print_nand_nfc();
+	eccstatus = check_ecc(mtd->writesize / 1024);
+
+	if (eccstatus >= 0) {
+		/* Collect ECC statistics: corrected bitflips. */
+		mtd->ecc_stats.corrected += eccstatus;
+
+		/* Copy the output to the buffer of the main NAND driver. */
+		nfc_read_buf(mtd, buf, mtd->writesize);
+		if (oob_required)
+			/* copy the OOB area */
+			nfc_read_buf(mtd, chip->oob_poi, mtd->oobsize);
+	}
+	else {
+		/* The ECC check has failed. Check if the page is empty
+		 * and update the read buffer if so. Otherwise report
+		 * ECC failure. */
+
+		/* Re-read the page without the randomiser or ECC. */
+		nfc_cmdfunc(mtd, NAND_CMD_READ1, 0, page);
+
+		/* Copy the output to the main driver area. */
+		nfc_read_buf(mtd, buf, mtd->writesize);
+		if (oob_required)
+			/* copy the OOB area */
+			nfc_read_buf(mtd, chip->oob_poi, mtd->oobsize);
+
+		if (nand_page_is_empty(mtd, buf, NULL)) {
+			memset(buf, 0xff, mtd->writesize);
+			if (oob_required)
+				memset(chip->oob_poi, 0xff, mtd->oobsize);
+			/* success */
+			eccstatus = 0;
+		}
+		else {
+			/* ECC error. The number of bitflips is inessential */
+			mtd->ecc_stats.failed++;
+			/* keep the same negative value for eccstatus */
+		}
+	}
+
+	return eccstatus;
 }
 
 int board_nand_init(struct nand_chip *nand)
@@ -495,8 +516,6 @@ int board_nand_init(struct nand_chip *nand)
 
 	// set gpio
 	sunxi_nand_set_gpio();
-
-	//print_nand_regs();
 
 	// reset NFC
 	ctl = readl(NFC_REG_CTL);
@@ -531,7 +550,6 @@ int board_nand_init(struct nand_chip *nand)
 		}
 		if (find) {
 			chip_param = &nand_chip_param[i];
-			debug("found nand chip in sunxi database\n");
 			for (j = 0; j < nand_chip_param[i].id_len; j++) {
 				printf("%x", nand_chip_param[i].id[j]);
 			}
@@ -542,15 +560,14 @@ int board_nand_init(struct nand_chip *nand)
 
 	// not find
 	if (chip_param == NULL) {
-		printf("can't find nand chip in sunxi database\n");
+		printf("chip database lookup failed\n");
 		return -ENODEV;
 	}
 
 	// set final NFC clock freq
-	if (chip_param->clock_freq > 20)
-		chip_param->clock_freq = 20;
+	if (chip_param->clock_freq > 30)
+		chip_param->clock_freq = 30;
 	sunxi_nand_set_clock((int)chip_param->clock_freq * 1000000);
-	debug("set final clock freq to %dMHz\n", (int)chip_param->clock_freq);
 
 	// disable interrupt
 	writel(0, NFC_REG_INT);
@@ -568,7 +585,7 @@ int board_nand_init(struct nand_chip *nand)
 
 	// Page size
 	if (chip_param->page_shift > 14 || chip_param->page_shift < 10) {
-		printf("Flash chip page shift out of range %d\n", (int)chip_param->page_shift);
+		printf("Page shift %d out of range\n", (int)chip_param->page_shift);
 		return -EINVAL;
 	}
 	// 0 for 1K
@@ -576,16 +593,19 @@ int board_nand_init(struct nand_chip *nand)
 	writel(ctl, NFC_REG_CTL);
 
 	writel(0xff, NFC_REG_TIMING_CFG);
-	writel((1U << chip_param->page_shift) + 2, NFC_REG_SPARE_AREA);
+	writel((1U << chip_param->page_shift) + BB_MARK_SIZE,
+	       NFC_REG_SPARE_AREA);
 
 	// disable random
 	disable_random();
 
 	// setup ECC layout
 	sunxi_ecclayout.eccbytes = 0;
-	sunxi_ecclayout.oobavail = (1U << chip_param->page_shift) / 1024 * 4 - 2;
-	sunxi_ecclayout.oobfree->offset = 2;
-	sunxi_ecclayout.oobfree->length = (1U << chip_param->page_shift) / 1024 * 4 - 2;
+	sunxi_ecclayout.oobavail =
+		(1U << chip_param->page_shift) / 1024 * 4 - BB_MARK_SIZE;
+	sunxi_ecclayout.oobfree->offset = BB_MARK_SIZE;
+	sunxi_ecclayout.oobfree->length =
+		(1U << chip_param->page_shift) / 1024 * 4 - BB_MARK_SIZE;
 	nand->ecc.layout = &sunxi_ecclayout;
 //	nand->ecc.size = 1U << chip_param->page_shift;
 	nand->ecc.bytes = 0;
@@ -609,6 +629,7 @@ int board_nand_init(struct nand_chip *nand)
 	nand->ecc.hwctl = nfc_ecc_hwctl;
 	nand->ecc.calculate = nfc_ecc_calculate;
 	nand->ecc.correct = nfc_ecc_correct;
+	nand->ecc.read_page = nfc_read_page_hwecc;
 	nand->select_chip = nfc_select_chip;
 	nand->dev_ready = nfc_dev_ready;
 	nand->cmdfunc = nfc_cmdfunc;
