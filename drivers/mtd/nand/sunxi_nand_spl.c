@@ -42,10 +42,8 @@ static int nfc_isbad(uint32_t offs)
 	writel(cfg, NFC_REG_CMD);
 	wait_cmdfifo_free();
 	wait_cmd_finish();
-	if ((marker = readb(NFC_RAM0_BASE)) != 0xff) {
-		printf("B=%x", marker);
+	if ((marker = readb(NFC_RAM0_BASE)) != 0xff)
 		return 1;
-	}
 	return 0;
 }
 
@@ -168,29 +166,26 @@ static int nfc_init(void)
 
 	// find chip
 	nand_chip_param = sunxi_get_nand_chip_param(id[0]);
-	printf("Sunxi NAND: ");
-	for (i = 0; nand_chip_param[i].id_len; i++) {
-		int find = 1;
+	printf("Sunxi NAND:");
+	for (i = 0; nand_chip_param[i].id_len && !chip_param; i++) {
 		for (j = 0; j < nand_chip_param[i].id_len; j++) {
-			if (id[j] != nand_chip_param[i].id[j]) {
-				find = 0;
+			if (id[j] != nand_chip_param[i].id[j])
+				break;
+			else {
+				chip_param = &nand_chip_param[i];
 				break;
 			}
 		}
-		if (find) {
-			chip_param = &nand_chip_param[i];
-			for (j = 0; j < nand_chip_param[i].id_len; j++) {
-				printf("%x", nand_chip_param[i].id[j]);
-			}
-			printf(" (ECC mode %d)\n", nand_chip_param[i].ecc_mode);
-			break;
-		}
 	}
-
-	// not find
-	if (chip_param == NULL) {
-		printf("chip database lookup failed\n");
+	if (!chip_param) {
+		printf(" unknown chip\n");
 		return -ENODEV;
+	}
+	else {
+		for (j = 0; j < chip_param->id_len; j++) {
+			printf(" %x", chip_param->id[j]);
+		}
+//		printf(" (ECC mode %d)\n", chip_param->ecc_mode);
 	}
 
 	// TODO: remove this upper bound
@@ -214,7 +209,7 @@ static int nfc_init(void)
 
 	// Page size
 	if (chip_param->page_shift > 14 || chip_param->page_shift < 10) {
-		printf("Page shift %d out of range\n", chip_param->page_shift);
+//		printf("Page shift out of range\n");
 		return -EINVAL;
 	}
 	// 0 for 1K
@@ -235,7 +230,7 @@ static int nfc_init(void)
 	// setup DMA
 	dma_hdle = DMA_Request(DMAC_DMATYPE_DEDICATED);
 	if (dma_hdle == 0) {
-		printf("DMA request failed\n");
+//		printf("DMA request failed\n");
 		return -ENODEV;
 	}
 
@@ -249,7 +244,7 @@ int nand_spl_isbad(uint32_t offs)
 
 #define MAX_BITFLIPS_EMPTY_PAGE 40
 
-bool nand_spl_page_is_empty(void *data)
+static bool nand_spl_page_is_empty(void *data)
 {
 	uint8_t *buf = data;
 	uint32_t pattern = 0xffffffff;
