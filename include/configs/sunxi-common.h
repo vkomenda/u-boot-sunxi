@@ -220,7 +220,7 @@
 	"bootcmd_stable=dhcp; tftp 0x43000000 sunxi-stable/script.bin;"	\
 	" tftp 0x48000000 sunxi-stable/uImage; bootm 0x48000000\0"	\
 	"bootargs_nfs=console=ttyS0,115200 root=/dev/nfs"		\
-	" nfsroot=172.16.0.91:/var/nfsexport/root"			\
+	" nfsroot=${serverip}:/var/nfsexport/root"			\
 	" ip=:${serverip}:${gatewayip}:${netmask}:${hostname}:eth0\0"	\
 	"mtdids=nand0=mtd-nand-sunxi.0\0"				\
 	"mtdparts=mtdparts=mtd-nand-sunxi.0:4M(SPL),4M(U-Boot),4M(uEnv),16M(packimg),16M(kernel),256M(initramfs),-(rootfs)\0" \
@@ -378,17 +378,34 @@
 */
 
 #define CONFIG_EXTRA_ENV_SETTINGS					\
-	"bootdelay=5\0"							\
-	"script_loadaddr=0x43000000\0"					\
-	"kernel_loadaddr=0x41000000\0"					\
-	"initrd_loadaddr=0x45000000\0"					\
+	"bootdelay=2\0"							\
+	"script_dst=0x43000000\0"					\
+	"kernel_dst=0x41000000\0"					\
+	"initrd_dst=0x45000000\0"					\
+	"script_src=0xc00000\0"						\
+	"kernel_src=0x1c00000\0"					\
+	"initrd_src=0x2c00000\0"					\
+	"script_size=0x10000\0"						\
+	"kernel_size=0x800000\0"					\
+	"initrd_size=0x8000000\0"					\
+	"nandroot=ubi.mtd=6 root=ubi0:rootfs rw rootfstype=ubifs\0"	\
 	"console=ttyS0,115200\0"					\
-	"nandargs=setenv bootargs console=${console} initrd=/linuxrc\0"	\
+	"nandargs="							\
+	"if test -x ${use_initrd}; then "				\
+	"  setenv bootargs console=${console} initrd=/linuxrc; "	\
+	"else; "							\
+	"  setenv bootargs console=${console} ${nandroot}"		\
+	"    rootwait=10; "						\
+	"fi;\0"								\
 	"nandboot=run nandargs; "					\
-	"nand read ${script_loadaddr} 0xc00000 0xa000; "		\
-	"nand read ${kernel_loadaddr} 0x1c00000 0x426000; "		\
-	"nand read ${initrd_loadaddr} 0x2c00000 0x1014000; "		\
-	"bootm ${kernel_loadaddr} ${initrd_loadaddr}\0"			\
+	"nand read ${script_dst} ${script_src} ${script_size}; "	\
+	"nand read ${kernel_dst} ${kernel_src} ${kernel_size}; "	\
+	"if test -x ${use_initrd}; then "				\
+	"  nand read ${initrd_dst} ${initrd_src} ${initrd_size}; "	\
+	"  bootm ${kernel_dst} ${initrd_dst}; "				\
+	"else; "							\
+	"  bootm ${kernel_dst}; "					\
+	"fi;\0"								\
 	"bootcmd=run nandboot\0"					\
 	SHARE_BOOT_ENV
 
