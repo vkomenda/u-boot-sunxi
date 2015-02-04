@@ -107,7 +107,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 
 		addr_cycle = 5;
 		// RAM0 is 1K size
-		byte_count =1024;
+		byte_count = 1024;
 		wait_rb_flag = 1;
 
 		if (do_enable_random)
@@ -180,6 +180,9 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		switch (addr_cycle) {
 		case 5:
 			high = (page_addr >> 16) & 0xff;
+		case 4:
+			low = (column & 0xffff) | (page_addr << 16);
+			break;
 		case 1:
 			low = column & 0xff;
 			break;
@@ -188,9 +191,6 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 			break;
 		case 3:
 			low = page_addr & 0xffffff;
-			break;
-		case 4:
-			low = (column & 0xffff) | (page_addr << 16);
 			break;
 		default:
 			error("wrong address cycle count");
