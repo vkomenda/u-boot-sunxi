@@ -27,6 +27,9 @@ static char read_buffer[NAND_READ_BUFFER_SIZE] __attribute__((aligned(4)));
 static struct nand_ecclayout sunxi_ecclayout;
 static int program_column = -1, program_page = -1;
 
+// special initialisation-time mode for reading the OTP area
+static uint8_t otp_mode = 0;
+
 static void nfc_select_chip(struct mtd_info *mtd, int chip)
 {
 	uint32_t ctl;
@@ -53,6 +56,13 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	writel(readl(NFC_REG_CTL) & ~NFC_RAM_METHOD, NFC_REG_CTL);
 
 	switch (command) {
+	case NAND_CMD_NONE: // used to set up RR
+		if (column) {
+			addr_cycle = 1;
+			byte_count = 1;
+			wait_rb_flag = 1;
+		}
+		break;
 	case NAND_CMD_RESET:
 	case NAND_CMD_ERASE2:
 		break;
@@ -68,15 +78,24 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		break;
 	case NAND_CMD_READ0: /* Implied randomised read, see
 			      * nand_base.c:do_nand_read_ops() */
-		do_enable_ecc = 1;
-		do_enable_random = 1;
+		if (likely(!otp_mode)) {
+			do_enable_ecc = 1;
+			do_enable_random = 1;
+		}
 		/* otherwise the same as a regular read */
 	case NAND_CMD_READOOB:
 	case NAND_CMD_READ1: /* Non-randomised read: this interpretation is
 			      * specific to this driver. */
 		if (command != NAND_CMD_READOOB) {
-			sector_count = mtd->writesize / 1024;
-			read_size = mtd->writesize;
+			if (!otp_mode) {
+				sector_count = mtd->writesize / 1024;
+				read_size = mtd->writesize;
+			}
+			else {
+				// Initialisation-time read from the OTP: read
+				// 1K raw, don't read user data NFC registers
+				read_size = 1024;
+			}
 		}
 		else {
 			// sector num to read
@@ -110,7 +129,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		byte_count = 1024;
 		wait_rb_flag = 1;
 
-		if (do_enable_random)
+		if (!otp_mode && do_enable_random)
 			// 0x30 for 2nd cycle of read page
 			// 0x05+0xe0 is the random data output command
 			writel(0x00e00530, NFC_REG_RCMD_SET);
@@ -168,8 +187,25 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	case NAND_CMD_STATUS:
 		byte_count = 1;
 		break;
+	case 0x36: /* Hynix OTP read or RRT write - start of the OTP mode */
+		addr_cycle = 1;
+		otp_mode = 1;
+		write_offset = 0;
+		break;
+	/* Hynix read RRT in OTP command sequence */
+	case 0x16:
+	case 0x17:
+	case 0x04:
+	case 0x19:
+		if (otp_mode) {
+			if (!column)
+				/* leave the OTP mode */
+				otp_mode = 0;
+			break;
+		}
+		/* else unknown command */
 	default:
-		printf("unknown command\n");
+		error("unknown command 0x%.2x\n", command);
 		return;
 	}
 
@@ -229,6 +265,9 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 
 	switch (command) {
 	case NAND_CMD_READ0:
+	case NAND_CMD_READ1:
+		// the OTP mode is switched off after a single read
+		otp_mode = 0;
 	case NAND_CMD_READOOB:
 	case NAND_CMD_PAGEPROG:
 		_wait_dma_end();
@@ -490,14 +529,13 @@ static int nfc_read_page_hwecc(struct mtd_info *mtd, struct nand_chip *chip,
 			memset(buf, 0xff, mtd->writesize);
 			if (oob_required)
 				memset(chip->oob_poi, 0xff, mtd->oobsize);
-			/* success */
-			eccstatus = 0;
 		}
 		else {
 			/* ECC error. The number of bitflips is inessential */
 			mtd->ecc_stats.failed++;
-			/* keep the same negative value for eccstatus */
 		}
+		/* success or allow nand_do_read_ops() proceed to read retry */
+		eccstatus = 0;
 	}
 
 	return eccstatus;

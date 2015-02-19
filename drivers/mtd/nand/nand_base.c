@@ -881,14 +881,16 @@ static int nand_wait(struct mtd_info *mtd, struct nand_chip *chip)
  */
 bool nand_page_is_empty(struct mtd_info *mtd, void *data, void *oob)
 {
+	struct nand_chip *chip = mtd->priv;
 	u8 *buf;
 	int length;
 	u32 pattern = 0xffffffff;
-	int bitflips = 0;
+	int bitflips = 0, max_bitflips;
 	int cnt;
 
 	buf = data;
 	length = mtd->writesize;
+	max_bitflips = chip->ecc.strength * chip->ecc.steps;
 	while (length) {
 		cnt = length < sizeof(pattern) ? length : sizeof(pattern);
 		if (memcmp(&pattern, buf, cnt)) {
@@ -897,7 +899,7 @@ bool nand_page_is_empty(struct mtd_info *mtd, void *data, void *oob)
 				if (!(buf[i / 8] &
 				      (1 << (i % 8)))) {
 					bitflips++;
-					if (bitflips > mtd->ecc_strength)
+					if (bitflips > max_bitflips)
 						return false;
 				}
 			}
@@ -921,7 +923,7 @@ bool nand_page_is_empty(struct mtd_info *mtd, void *data, void *oob)
 				if (!(buf[i / 8] &
 				      (1 << (i % 8)))) {
 					bitflips++;
-					if (bitflips > mtd->ecc_strength)
+					if (bitflips > chip->ecc.strength)
 						return false;
 				}
 			}
