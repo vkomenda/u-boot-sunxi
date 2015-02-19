@@ -22,6 +22,32 @@
 int sunxi_nand_spl_page_size;
 int sunxi_nand_spl_block_size;
 
+static uint8_t h27ucg8t2e_read_retry_regs[] = {
+	0x38, 0x39, 0x3a, 0x3b
+};
+
+static uint8_t h27ucg8t2e_read_retry_values[] = {
+	0x00, 0x00, 0x00, 0x00,
+	0x02, 0x02, 0xfe, 0xfd,
+	0x03, 0x03, 0xff, 0xf5,
+	0xf1, 0xfd, 0xf8, 0xf7,
+	0xed, 0xfc, 0xfb, 0xf5,
+	0xe7, 0xfb, 0xf1, 0xf0,
+	0xdd, 0xf8, 0xf7, 0xf4,
+	0xd3, 0xe4, 0xeb, 0xeb
+};
+
+struct spl_read_retry {
+	uint8_t  retries; // maximum number of possible retries
+	uint8_t  regnum;  // number of registers to set on each RR step
+	uint8_t* regs;    // array of register addresses
+	uint8_t* values;  // RR values to be written into the RR registers
+        int      (*setup)(int retry);  // setup function
+};
+
+struct spl_read_retry read_retry;
+int hynix_setup_read_retry(int retry);
+
 static int nfc_isbad(uint32_t offs)
 {
 	uint32_t page_addr;
@@ -164,7 +190,7 @@ static int nfc_init(void)
 	// read nand chip id
 	nfc_readid(id);
 
-	printf("NAND:");
+//	printf("NAND:");
 	/* Get parameters of the chip in the database of the driver. */
 	chip_cur = sunxi_get_nand_chip_param(id[0]);
 	for (i = 0; !chip && chip_cur[i].id_len; i++)
@@ -185,6 +211,13 @@ static int nfc_init(void)
 		for (j = 0; j < chip->id_len; j++)
 			printf(" %x", chip->id[j]);
 	printf("\n");
+
+	/* TODO: read read retry tables from OOB */
+	read_retry.retries = 8;
+	read_retry.regnum  = 4;
+	read_retry.regs    = h27ucg8t2e_read_retry_regs;
+	read_retry.values  = h27ucg8t2e_read_retry_values;
+	read_retry.setup   = hynix_setup_read_retry;
 
 	// TODO: remove this upper bound
 	if (chip->clock_freq > 30)
@@ -241,14 +274,14 @@ int nand_spl_isbad(uint32_t offs)
 	return nfc_isbad(offs);
 }
 
-#define MAX_BITFLIPS_EMPTY_PAGE 40
-
 static bool nand_spl_page_is_empty(void *data)
 {
 	uint8_t *buf = data;
 	uint32_t pattern = 0xffffffff;
 	int bitflips = 0, cnt;
 	uint32_t length = sunxi_nand_spl_page_size;
+	/* hard-coded total error correction bit limit for 40-bit/1KiB ECC */
+	int max_bitflips = (sunxi_nand_spl_page_size / 1024) * 40;
 
 	while (length) {
 		cnt = length < sizeof(pattern) ? length : sizeof(pattern);
@@ -258,7 +291,7 @@ static bool nand_spl_page_is_empty(void *data)
 				if (!(buf[i / 8] &
 				      (1 << (i % 8)))) {
 					bitflips++;
-					if (bitflips > MAX_BITFLIPS_EMPTY_PAGE)
+					if (bitflips > max_bitflips)
 						return false;
 				}
 			}
@@ -271,21 +304,87 @@ static bool nand_spl_page_is_empty(void *data)
 	return true;
 }
 
+static void hynix_send_rrt_prefix(uint8_t addr, uint8_t data)
+{
+	uint32_t cfg;
+
+	writel(1, NFC_REG_CNT);
+	writeb(data, NFC_RAM0_BASE);
+	writel(addr, NFC_REG_ADDR_LOW);
+	writel(0, NFC_REG_ADDR_HIGH);
+	cfg = 0x36 | NFC_WAIT_FLAG | NFC_SEND_CMD1 | NFC_DATA_TRANS |
+		NFC_ACCESS_DIR | NFC_SEND_ADR;
+	writel(cfg, NFC_REG_CMD);
+	wait_cmdfifo_free();
+	wait_cmd_finish();
+}
+
+int hynix_setup_read_retry(int retry)
+{
+	uint32_t cfg;
+	int i;
+	int offset = retry * read_retry.regnum;
+
+	printf("RR %d\n", retry);
+
+	if (retry >= read_retry.retries)
+		return -EINVAL;
+
+	for (i = 0; i < read_retry.regnum; i++) {
+		hynix_send_rrt_prefix(read_retry.regs[i],
+				      read_retry.values[offset + i]);
+	}
+	cfg = 0x16;
+	cfg |= NFC_SEND_CMD1;
+	writel(cfg, NFC_REG_CMD);
+
+    	wait_cmdfifo_free();
+    	wait_cmd_finish();
+	/* TODO: check NFC status */
+
+	return 0;
+}
+
 void nand_spl_read(uint32_t offs, int size, void *dst)
 {
 //	printf("i@%x(%x)->%p\n", offs, size, dst);
 
 	// offs must be page aligned
 	while (size > 0) {
-		if (nfc_read_page(offs, dst, false) < 0) {
-			/* ECC check has failed. Read the page raw and check it
-			 * for emptiness. */
+		int retry, status;
+
+		retry = 0;
+		status = 1;
+
+		while (status && retry < read_retry.retries) {
+			status = nfc_read_page(offs, dst, false);
+			if (!status)
+				/* page read successful */
+				break;
+
+			/* ECC check has failed. Read the page raw and
+			 * check it for emptiness. */
 			nfc_read_page(offs, dst, true);
-			if (nand_spl_page_is_empty(dst))
+			if (nand_spl_page_is_empty(dst)) {
+				/* emptiness check passed */
 				memset(dst, 0xff, sunxi_nand_spl_page_size);
+				status = 0;
+			}
 			else
 				printf("ECC error @ %x\n", offs);
+
+			if (status && retry + 1 < read_retry.retries) {
+				retry++;
+				if (read_retry.setup(retry)) {
+//					printf("RR setup error\n");
+					status = 0;
+				}
+			}
 		}
+
+		if (retry)
+			read_retry.setup(0);
+
 		offs += sunxi_nand_spl_page_size;
 		dst += sunxi_nand_spl_page_size;
 		size -= sunxi_nand_spl_page_size;

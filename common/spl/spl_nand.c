@@ -140,11 +140,11 @@ static int load_packimg(uint32_t start, uint32_t end, void *buff)
 		return 0;
 
 	next_block:
-		error("invalid packimg at offset %x\n", offs);
+//		error("invalid packimg at offset %x\n", offs);
 		offs += CONFIG_SYS_NAND_BLOCK_SIZE;
 	}
 
-	error("load packimg from %x to %x fail\n", start, end);
+//	error("load packimg from %x to %x fail\n", start, end);
 	return -1;
 }
 
@@ -198,10 +198,10 @@ void spl_nand_load_image(void)
 			nand_deselect();
 			return;
 		} else {
-			puts("The Expected Linux image was not "
-				"found. Please check your NAND "
-				"configuration.\n");
-			puts("Trying to start u-boot now...\n");
+//			puts("The Expected Linux image was not "
+//				"found. Please check your NAND "
+//				"configuration.\n");
+			printf("Starting U-Boot\n");
 		}
 	}
 #endif

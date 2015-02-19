@@ -64,7 +64,7 @@ __weak void spl_board_prepare_for_linux(void)
 void spl_parse_image_header(const struct image_header *header)
 {
 	u32 header_size = sizeof(struct image_header);
-	printf("\nm=%x\n", image_get_magic(header));
+//	printf("\nm=%x\n", image_get_magic(header));
 
 	if (image_get_magic(header) == IH_MAGIC) {
 		if (spl_image.flags & SPL_COPY_PAYLOAD_ONLY) {
@@ -91,7 +91,7 @@ void spl_parse_image_header(const struct image_header *header)
 			spl_image.load_addr, spl_image.size);
 	} else {
 		/* Signature not found - assume u-boot.bin */
-		puts("?");
+//		puts("?");
 		debug("mkimage signature not found - ih_magic = %x\n",
 			header->ih_magic);
 		/* Let's assume U-Boot will not be more than 200 KB */

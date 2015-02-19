@@ -105,7 +105,7 @@ static int h27ucg8t2a_init(struct mtd_info *mtd, const uint8_t *id)
 
 	if ((buf[0] != 8 || buf[1] != 8) &&
 	    (buf[8] != 8 || buf[9] != 8)) {
-		printf("wrong total RR count or RR register count\n");
+		error("wrong total RR count or RR register count\n");
 		ret = -EINVAL;
 		goto succeed_fail_a;
 	}
@@ -125,7 +125,7 @@ static int h27ucg8t2a_init(struct mtd_info *mtd, const uint8_t *id)
 			uint8_t inverse  = cur[rrtReg + 64];
 			printf(" %.2x", original);
 			if ((original | inverse) != 0xff) {
-				printf("original read retry level doesn't match its inverse");
+				error("original read retry level doesn't match its inverse\n");
 				ret = -EINVAL;
 				break;
 			}
@@ -161,7 +161,7 @@ succeed_fail_a:
 		chip->manuf_cleanup = h27ucg8t2a_cleanup;
 	}
 	else
-		printf("Read retry initialisation failed.\n");
+		error("Read retry initialisation failed.\n");
 
 buf_dealloc_a:
 	if (buf)
@@ -222,7 +222,7 @@ static int h27ucg8t2e_init(struct mtd_info *mtd, const uint8_t *id)
 
 	if ((buf[0] != 8 || buf[1] != 8) &&
 	    (buf[8] != 4 || buf[9] != 4)) {
-		printf("wrong total RR count or RR register count");
+		error("wrong total RR count or RR register count\n");
 		ret = -EINVAL;
 		goto succeed_fail_e;
 	}
@@ -248,7 +248,7 @@ static int h27ucg8t2e_init(struct mtd_info *mtd, const uint8_t *id)
 			uint8_t inverse  = cur[rrtReg + 32];
 			printf(" %.2x", original);
 			if ((original | inverse) != 0xff) {
-				printf(" original RR level doesn't match its inverse\n");
+				error("original RR level doesn't match its inverse\n");
 				ret = -EINVAL;
 				break;
 			}
@@ -283,7 +283,7 @@ succeed_fail_e:
 		chip->manuf_cleanup = h27ucg8t2e_cleanup;
 	}
 	else
-		printf("Read retry initialisation failed.\n");
+		error("Read retry initialisation failed.\n");
 
 buf_dealloc_e:
 	if (buf)
