@@ -393,7 +393,7 @@
 	"nandargs="							\
 	"if test -x ${use_initrd}; then "				\
 	"  setenv bootargs console=${console} initrd=/linuxrc; "	\
-	"else; "							\
+	"else "								\
 	"  setenv bootargs console=${console} ${nandroot}"		\
 	"    rootwait=10; "						\
 	"fi;\0"								\
@@ -403,7 +403,7 @@
 	"if test -x ${use_initrd}; then "				\
 	"  nand read ${initrd_dst} ${initrd_src} ${initrd_size}; "	\
 	"  bootm ${kernel_dst} ${initrd_dst}; "				\
-	"else; "							\
+	"else "								\
 	"  bootm ${kernel_dst}; "					\
 	"fi;\0"								\
 	"bootcmd=run nandboot\0"					\

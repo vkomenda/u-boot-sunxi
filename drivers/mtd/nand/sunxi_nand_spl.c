@@ -212,7 +212,7 @@ static int nfc_init(void)
 			printf(" %x", chip->id[j]);
 	printf("\n");
 
-	/* TODO: read read retry tables from OOB */
+	/* TODO: load read retry tables from OOB */
 	read_retry.retries = 8;
 	read_retry.regnum  = 4;
 	read_retry.regs    = h27ucg8t2e_read_retry_regs;
@@ -314,6 +314,7 @@ static void hynix_send_rrt_prefix(uint8_t addr, uint8_t data)
 	writel(0, NFC_REG_ADDR_HIGH);
 	cfg = 0x36 | NFC_WAIT_FLAG | NFC_SEND_CMD1 | NFC_DATA_TRANS |
 		NFC_ACCESS_DIR | NFC_SEND_ADR;
+	wait_cmdfifo_free();
 	writel(cfg, NFC_REG_CMD);
 	wait_cmdfifo_free();
 	wait_cmd_finish();
@@ -368,6 +369,7 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 			if (nand_spl_page_is_empty(dst)) {
 				/* emptiness check passed */
 				memset(dst, 0xff, sunxi_nand_spl_page_size);
+				/* set termination condition */
 				status = 0;
 			}
 			else
