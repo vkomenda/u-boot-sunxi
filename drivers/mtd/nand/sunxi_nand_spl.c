@@ -277,6 +277,9 @@ static int nfc_init(void)
 			printf(" %x", chip->id[j]);
 	printf("\n");
 
+	/* set default for chips not supported by the RR procedures */
+	read_retry.retries = 0;
+	/* force hard-coded RR parameters for supported chips */
 	spl_hynix_nand_init(chip->id);
 
 	// TODO: remove this upper bound
@@ -399,8 +402,8 @@ int hynix_setup_read_retry(int retry)
 	cfg |= NFC_SEND_CMD1;
 	writel(cfg, NFC_REG_CMD);
 
-    	wait_cmdfifo_free();
-    	wait_cmd_finish();
+	wait_cmdfifo_free();
+	wait_cmd_finish();
 	/* TODO: check NFC status */
 
 	return 0;
@@ -417,7 +420,7 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 		retry = 0;
 		status = 1;
 
-		while (status && retry < read_retry.retries) {
+		while (status && retry < read_retry.retries + 1) {
 			status = nfc_read_page(offs, dst, false);
 			if (!status)
 				/* page read successful */
@@ -433,17 +436,18 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 				status = 0;
 			}
 			else
-				printf("ECC error @ %x\n", offs);
+				printf("ECC error @%x\n", offs);
 
-			if (status && retry + 1 < read_retry.retries) {
-				retry++;
-				if (read_retry.setup(retry)) {
-//					printf("RR setup error\n");
-					status = 0;
+			if (status) {
+				if (retry < read_retry.retries) {
+					retry++;
+					if (read_retry.setup(retry))
+						/* exit from the loop */
+						status = 0;
 				}
-			}
-			else {
-				status = 0;
+				else {
+					printf("reads failed @%x\n", offs);
+				}
 			}
 		}
 

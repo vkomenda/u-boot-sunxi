@@ -390,22 +390,12 @@
 	"initrd_size=0x8000000\0"					\
 	"nandroot=ubi.mtd=6 root=ubi0:rootfs rw rootfstype=ubifs\0"	\
 	"console=ttyS0,115200\0"					\
-	"nandargs="							\
-	"if test -x ${use_initrd}; then "				\
-	"  setenv bootargs console=${console} initrd=/linuxrc; "	\
-	"else "								\
-	"  setenv bootargs console=${console} ${nandroot}"		\
-	"    rootwait=10; "						\
-	"fi;\0"								\
+	"nandargs=setenv bootargs console=${console} ${nandroot}"	\
+	" rootwait=10\0"						\
 	"nandboot=run nandargs; "					\
-	"nand read ${script_dst} ${script_src} ${script_size}; "	\
-	"nand read ${kernel_dst} ${kernel_src} ${kernel_size}; "	\
-	"if test -x ${use_initrd}; then "				\
-	"  nand read ${initrd_dst} ${initrd_src} ${initrd_size}; "	\
-	"  bootm ${kernel_dst} ${initrd_dst}; "				\
-	"else "								\
-	"  bootm ${kernel_dst}; "					\
-	"fi;\0"								\
+	" nand read ${script_dst} ${script_src} ${script_size};"	\
+	" nand read ${kernel_dst} ${kernel_src} ${kernel_size};"	\
+	" bootm ${kernel_dst}\0"					\
 	"bootcmd=run nandboot\0"					\
 	SHARE_BOOT_ENV
 

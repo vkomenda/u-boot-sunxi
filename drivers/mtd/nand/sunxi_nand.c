@@ -30,28 +30,28 @@ static int program_column = -1, program_page = -1;
 // special initialisation-time mode for reading the OTP area
 static uint8_t otp_mode = 0;
 
-static inline void wait_cmdfifo_free(void)
+inline void wait_cmdfifo_free(void)
 {
 	int timeout = 0xffff;
 	while ((timeout--) && (readl(NFC_REG_ST) & NFC_CMD_FIFO_STATUS));
 	if (timeout <= 0) {
-		error("timeout");
+		printf("cmd fifo timeout");
 	}
 }
 
-static inline void wait_cmd_finish(void)
+inline void wait_cmd_finish(void)
 {
 	int timeout = 0xffff;
 	while((timeout--) && !(readl(NFC_REG_ST) & NFC_CMD_INT_FLAG));
 	if (timeout <= 0) {
-		error("timeout");
+		printf("cmd finish timeout");
 		return;
 	}
 	writel(NFC_CMD_INT_FLAG, NFC_REG_ST);
 }
 
 // 1 for ready, 0 for not ready
-static inline int check_rb_ready(int rb)
+inline int check_rb_ready(int rb)
 {
 	return (readl(NFC_REG_ST) & (NFC_RB_STATE0 << (rb & 0x3))) ? 1 : 0;
 }
@@ -70,14 +70,15 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 						int page_addr)
 {
 	int i;
-	uint32_t cfg = command;
-	int read_size, write_size, do_enable_ecc = 0, do_enable_random = 0;
+	uint32_t cfg;
+	int read_size, write_size, do_enable_ecc, do_enable_random;
 	int addr_cycle, wait_rb_flag, byte_count, sector_count;
 
+	cfg = command;
+	do_enable_ecc = do_enable_random = 0;
 	addr_cycle = wait_rb_flag = byte_count = sector_count = 0;
 
-	printf("cmd %x col %x page %x: wait fifo before\n",
-	       command, column, page_addr);
+	printf("cmd %x col %x pg %x\n", command, column, page_addr);
 	wait_cmdfifo_free();
 
 	// switch to AHB
@@ -106,7 +107,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		break;
 	case NAND_CMD_READ0: /* Implied randomised read, see
 			      * nand_base.c:do_nand_read_ops() */
-		if (likely(!otp_mode)) {
+		if (!otp_mode) {
 			do_enable_ecc = 1;
 			do_enable_random = 1;
 		}
@@ -179,25 +180,25 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		addr_cycle = 5;
 		column = program_column;
 		page_addr = program_page;
-		debug("cmdfunc pageprog: %d %d\n", column, page_addr);
-
+		if (column == 0) {
+			sector_count = mtd->writesize / 1024;
+			do_enable_ecc = 1;
+			do_enable_random = 1;
+			write_size = mtd->writesize;
+			for (i = 0; i < sector_count; i++)
+				writel(*((u32*)
+					 (write_buffer + mtd->writesize) + i * 4),
+				       NFC_REG_USER_DATA(i));
+		}
 		// for write OOB
-		if (column == mtd->writesize) {
+		else if (column == mtd->writesize) {
 			sector_count = 1024 /1024;
 			write_size = 1024;
 		}
-		else if (column == 0) {
-			sector_count = mtd->writesize / 1024;
-			do_enable_ecc = 1;
-			write_size = mtd->writesize;
-			for (i = 0; i < sector_count; i++)
-				writel(*((unsigned int *)(write_buffer + mtd->writesize) + i), NFC_REG_USER_DATA(i));
-		}
 		else {
-			printf("program unsupported column %d %d\n", column, page_addr);
+			printf("program unsupported column %d\n", column);
 			return;
 		}
-		do_enable_random = 1;
 
 		//access NFC internal RAM by DMA bus
 		writel(readl(NFC_REG_CTL) | NFC_RAM_METHOD, NFC_REG_CTL);
@@ -305,9 +306,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	}
 
 	// wait command send complete
-	printf("cmd: wait fifo after\n");
 	wait_cmdfifo_free();
-	printf("cmd: wait cmd\n");
 	wait_cmd_finish();
 
 	// reset will wait for RB ready
@@ -701,7 +700,8 @@ int board_nand_init(struct nand_chip *nand)
 	nand->read_buf = nfc_read_buf;
 	nand->write_buf = nfc_write_buf;
 	nand->waitfunc = nfc_wait;
-	nand->bbt_options = NAND_BBT_USE_FLASH;
+	nand->bbt_options = NAND_BBT_SCANLASTPAGE |
+		NAND_BBT_USE_FLASH | NAND_BBT_NO_OOB;
 	nand->options = 0;
 
 	mtd = &nand_info[0];

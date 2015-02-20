@@ -1343,7 +1343,7 @@ static int nand_setup_read_retry(struct mtd_info *mtd, int retry_mode)
 {
 	struct nand_chip *chip = mtd->priv;
 
-        printf("setting READ RETRY mode %d\n", retry_mode);
+        printf("RR mode %d\n", retry_mode);
 
 	if (retry_mode >= chip->read_retries)
 		return -EINVAL;
@@ -1414,8 +1414,7 @@ read_retry:
 				ret = chip->ecc.read_page_raw(mtd, chip, bufpoi,
 							      oob_required,
 							      page);
-			else if (!aligned && NAND_HAS_SUBPAGE_READ(chip) &&
-			    !oob)
+			else if (!aligned && NAND_HAS_SUBPAGE_READ(chip) && !oob)
 				ret = chip->ecc.read_subpage(mtd, chip,
 							col, bytes, bufpoi);
 			else
@@ -1461,8 +1460,7 @@ read_retry:
 					ret = nand_setup_read_retry(mtd,
 							retry_mode);
 					if (ret < 0) {
-						printf("nand_setup_read_retry ERROR %d\n",
-						       ret);
+						printf("RR setup ERROR %d\n", ret);
 						break;
 					}
 
