@@ -28,33 +28,7 @@ static struct nand_ecclayout sunxi_ecclayout;
 static int program_column = -1, program_page = -1;
 
 // special initialisation-time mode for reading the OTP area
-static uint8_t otp_mode = 0;
-
-inline void wait_cmdfifo_free(void)
-{
-	int timeout = 0xffff;
-	while ((timeout--) && (readl(NFC_REG_ST) & NFC_CMD_FIFO_STATUS));
-	if (timeout <= 0) {
-		printf("cmd fifo timeout");
-	}
-}
-
-inline void wait_cmd_finish(void)
-{
-	int timeout = 0xffff;
-	while((timeout--) && !(readl(NFC_REG_ST) & NFC_CMD_INT_FLAG));
-	if (timeout <= 0) {
-		printf("cmd finish timeout");
-		return;
-	}
-	writel(NFC_CMD_INT_FLAG, NFC_REG_ST);
-}
-
-// 1 for ready, 0 for not ready
-inline int check_rb_ready(int rb)
-{
-	return (readl(NFC_REG_ST) & (NFC_RB_STATE0 << (rb & 0x3))) ? 1 : 0;
-}
+//static uint8_t otp_mode = 0;
 
 static void nfc_select_chip(struct mtd_info *mtd, int chip)
 {
@@ -70,28 +44,18 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 						int page_addr)
 {
 	int i;
-	uint32_t cfg;
-	int read_size, write_size, do_enable_ecc, do_enable_random;
+	uint32_t cfg = command;
+	int read_size, write_size, do_enable_ecc = 0, do_enable_random = 0;
 	int addr_cycle, wait_rb_flag, byte_count, sector_count;
 
-	cfg = command;
-	do_enable_ecc = do_enable_random = 0;
 	addr_cycle = wait_rb_flag = byte_count = sector_count = 0;
 
-	printf("cmd %x col %x pg %x\n", command, column, page_addr);
 	wait_cmdfifo_free();
 
 	// switch to AHB
 	writel(readl(NFC_REG_CTL) & ~NFC_RAM_METHOD, NFC_REG_CTL);
 
 	switch (command) {
-	case NAND_CMD_NONE: // used to set up RR
-		if (column) {
-			addr_cycle = 1;
-			byte_count = 1;
-			wait_rb_flag = 1;
-		}
-		break;
 	case NAND_CMD_RESET:
 	case NAND_CMD_ERASE2:
 		break;
@@ -107,24 +71,15 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		break;
 	case NAND_CMD_READ0: /* Implied randomised read, see
 			      * nand_base.c:do_nand_read_ops() */
-		if (!otp_mode) {
-			do_enable_ecc = 1;
-			do_enable_random = 1;
-		}
+		do_enable_ecc = 1;
+		do_enable_random = 1;
 		/* otherwise the same as a regular read */
 	case NAND_CMD_READOOB:
 	case NAND_CMD_READ1: /* Non-randomised read: this interpretation is
 			      * specific to this driver. */
 		if (command != NAND_CMD_READOOB) {
-			if (!otp_mode) {
-				sector_count = mtd->writesize / 1024;
-				read_size = mtd->writesize;
-			}
-			else {
-				// Initialisation-time read from the OTP: read
-				// 1K raw, don't read user data NFC registers
-				read_size = 1024;
-			}
+			sector_count = mtd->writesize / 1024;
+			read_size = mtd->writesize;
 		}
 		else {
 			// sector num to read
@@ -158,7 +113,7 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		byte_count = 1024;
 		wait_rb_flag = 1;
 
-		if (!otp_mode && do_enable_random)
+		if (do_enable_random)
 			// 0x30 for 2nd cycle of read page
 			// 0x05+0xe0 is the random data output command
 			writel(0x00e00530, NFC_REG_RCMD_SET);
@@ -180,25 +135,25 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		addr_cycle = 5;
 		column = program_column;
 		page_addr = program_page;
-		if (column == 0) {
-			sector_count = mtd->writesize / 1024;
-			do_enable_ecc = 1;
-			do_enable_random = 1;
-			write_size = mtd->writesize;
-			for (i = 0; i < sector_count; i++)
-				writel(*((u32*)
-					 (write_buffer + mtd->writesize) + i * 4),
-				       NFC_REG_USER_DATA(i));
-		}
+		debug("cmdfunc pageprog: %d %d\n", column, page_addr);
+
 		// for write OOB
-		else if (column == mtd->writesize) {
+		if (column == mtd->writesize) {
 			sector_count = 1024 /1024;
 			write_size = 1024;
 		}
+		else if (column == 0) {
+			sector_count = mtd->writesize / 1024;
+			do_enable_ecc = 1;
+			write_size = mtd->writesize;
+			for (i = 0; i < sector_count; i++)
+				writel(*((unsigned int *)(write_buffer + mtd->writesize) + i), NFC_REG_USER_DATA(i));
+		}
 		else {
-			printf("program unsupported column %d\n", column);
+			printf("program unsupported column %d %d\n", column, page_addr);
 			return;
 		}
+		do_enable_random = 1;
 
 		//access NFC internal RAM by DMA bus
 		writel(readl(NFC_REG_CTL) | NFC_RAM_METHOD, NFC_REG_CTL);
@@ -216,25 +171,8 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	case NAND_CMD_STATUS:
 		byte_count = 1;
 		break;
-	case 0x36: /* Hynix OTP read or RRT write - start of the OTP mode */
-		addr_cycle = 1;
-		otp_mode = 1;
-		write_offset = 0;
-		break;
-	/* Hynix read RRT in OTP command sequence */
-	case 0x16:
-	case 0x17:
-	case 0x04:
-	case 0x19:
-		if (otp_mode) {
-			if (!column)
-				/* leave the OTP mode */
-				otp_mode = 0;
-			break;
-		}
-		/* else unknown command */
 	default:
-		error("unknown command 0x%.2x\n", command);
+		printf("unknown command\n");
 		return;
 	}
 
@@ -294,9 +232,6 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 
 	switch (command) {
 	case NAND_CMD_READ0:
-	case NAND_CMD_READ1:
-		// the OTP mode is switched off after a single read
-		otp_mode = 0;
 	case NAND_CMD_READOOB:
 	case NAND_CMD_PAGEPROG:
 		_wait_dma_end();
@@ -526,7 +461,9 @@ void nfc_write_page1k(uint32_t page_addr, void *buff)
 static int nfc_read_page_hwecc(struct mtd_info *mtd, struct nand_chip *chip,
 			       uint8_t *buf, int oob_required, int page)
 {
-	int eccstatus = 0;
+	int eccstatus = 0, retry = 0;
+
+check_read_retry:
 
 	eccstatus = check_ecc(mtd->writesize / 1024);
 
@@ -562,10 +499,22 @@ static int nfc_read_page_hwecc(struct mtd_info *mtd, struct nand_chip *chip,
 		else {
 			/* ECC error. The number of bitflips is inessential */
 			mtd->ecc_stats.failed++;
+			if (retry + 1 < read_retry.retries) {
+				retry++;
+				read_retry.setup(retry);
+				nfc_cmdfunc(mtd, NAND_CMD_READ0, 0, page);
+				goto check_read_retry;
+			}
+			else {
+				printf("reads failed @%x\n", page);
+			}
 		}
-		/* success or allow nand_do_read_ops() proceed to read retry */
+		/* success */
 		eccstatus = 0;
 	}
+
+	if (retry)
+		read_retry.setup(0);
 
 	return eccstatus;
 }
@@ -626,6 +575,11 @@ int board_nand_init(struct nand_chip *nand)
 			printf(" %x", chip->id[j]);
 	}
 	printf("\n");
+
+	/* set default for chips not supported by the RR procedures */
+	read_retry.retries = 0;
+	/* force hard-coded RR parameters for supported chips */
+	hynix_rr_init(chip->id);
 
 	// set final NFC clock freq
 	if (chip->clock_freq > 30)

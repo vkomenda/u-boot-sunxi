@@ -22,58 +22,6 @@
 int sunxi_nand_spl_page_size;
 int sunxi_nand_spl_block_size;
 
-static uint8_t h27ucg8t2e_read_retry_regs[] = {
-	0x38, 0x39, 0x3a, 0x3b
-};
-
-static uint8_t h27ucg8t2e_read_retry_values[] = {
-	0x00, 0x00, 0x00, 0x00,
-	0x02, 0x02, 0xfe, 0xfd,
-	0x03, 0x03, 0xff, 0xf5,
-	0xf1, 0xfd, 0xf8, 0xf7,
-	0xed, 0xfc, 0xfb, 0xf5,
-	0xe7, 0xfb, 0xf1, 0xf0,
-	0xdd, 0xf8, 0xf7, 0xf4,
-	0xd3, 0xe4, 0xeb, 0xeb
-};
-
-struct spl_read_retry {
-	uint8_t  retries; // maximum number of possible retries
-	uint8_t  regnum;  // number of registers to set on each RR step
-	uint8_t* regs;    // array of register addresses
-	uint8_t* values;  // RR values to be written into the RR registers
-        int      (*setup)(int retry);  // setup function
-};
-
-struct spl_read_retry read_retry;
-int hynix_setup_read_retry(int retry);
-
-static void wait_cmdfifo_free(void)
-{
-	int timeout = 0xffff;
-	while ((timeout--) && (readl(NFC_REG_ST) & NFC_CMD_FIFO_STATUS));
-	if (timeout <= 0) {
-		printf("wait_cmdfifo_free timeout\n");
-	}
-}
-
-static void wait_cmd_finish(void)
-{
-	int timeout = 0xffff;
-	while((timeout--) && !(readl(NFC_REG_ST) & NFC_CMD_INT_FLAG));
-	if (timeout <= 0) {
-		printf("wait_cmd_finish timeout\n");
-		return;
-	}
-	writel(NFC_CMD_INT_FLAG, NFC_REG_ST);
-}
-
-// 1 for ready, 0 for not ready
-static int check_rb_ready(int rb)
-{
-	return (readl(NFC_REG_ST) & (NFC_RB_STATE0 << (rb & 0x3))) ? 1 : 0;
-}
-
 static int nfc_isbad(uint32_t offs)
 {
 	uint32_t page_addr;
@@ -183,45 +131,6 @@ static void nfc_select_chip(int chip)
 	writel(ctl, NFC_REG_CTL);
 }
 
-static void h27ucg8t2e_init(void)
-{
-	/* TODO: consider loading read retry tables from OOB */
-	read_retry.retries = 8;
-	read_retry.regnum  = 4;
-	read_retry.regs    = h27ucg8t2e_read_retry_regs;
-	read_retry.values  = h27ucg8t2e_read_retry_values;
-	read_retry.setup   = hynix_setup_read_retry;
-}
-
-struct hynix_init_assoc {
-	uint8_t id[6];
-	void (*init)(void);
-};
-
-struct hynix_init_assoc hynix_init[] = {
-//	{
-//		.id = {NAND_MFR_HYNIX, 0xd7, 0x94, 0xda, 0x74, 0xc3},
-//		.init = TODO,
-//	},
-	{
-		.id = {NAND_MFR_HYNIX, 0xde, 0x14, 0xa7, 0x42, 0x4a},
-		.init = h27ucg8t2e_init,
-	},
-};
-
-static void spl_hynix_nand_init(const uint8_t *id)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(hynix_init); i++) {
-		struct hynix_init_assoc *init = &hynix_init[i];
-		if (!memcmp(id, init->id, sizeof(init->id))) {
-			init->init();
-			break;
-		}
-	}
-}
-
 static int nfc_init(void)
 {
 	u32 ctl;
@@ -280,7 +189,7 @@ static int nfc_init(void)
 	/* set default for chips not supported by the RR procedures */
 	read_retry.retries = 0;
 	/* force hard-coded RR parameters for supported chips */
-	spl_hynix_nand_init(chip->id);
+	hynix_rr_init(chip->id);
 
 	// TODO: remove this upper bound
 	if (chip->clock_freq > 30)
@@ -367,48 +276,6 @@ static bool nand_spl_page_is_empty(void *data)
 	return true;
 }
 
-static void hynix_send_rrt_prefix(uint8_t addr, uint8_t data)
-{
-	uint32_t cfg;
-
-	writel(1, NFC_REG_CNT);
-	writeb(data, NFC_RAM0_BASE);
-	writel(addr, NFC_REG_ADDR_LOW);
-	writel(0, NFC_REG_ADDR_HIGH);
-	cfg = 0x36 | NFC_WAIT_FLAG | NFC_SEND_CMD1 | NFC_DATA_TRANS |
-		NFC_ACCESS_DIR | NFC_SEND_ADR;
-	wait_cmdfifo_free();
-	writel(cfg, NFC_REG_CMD);
-	wait_cmdfifo_free();
-	wait_cmd_finish();
-}
-
-int hynix_setup_read_retry(int retry)
-{
-	uint32_t cfg;
-	int i;
-	int offset = retry * read_retry.regnum;
-
-	printf("RR %d\n", retry);
-
-	if (retry >= read_retry.retries)
-		return -EINVAL;
-
-	for (i = 0; i < read_retry.regnum; i++) {
-		hynix_send_rrt_prefix(read_retry.regs[i],
-				      read_retry.values[offset + i]);
-	}
-	cfg = 0x16;
-	cfg |= NFC_SEND_CMD1;
-	writel(cfg, NFC_REG_CMD);
-
-	wait_cmdfifo_free();
-	wait_cmd_finish();
-	/* TODO: check NFC status */
-
-	return 0;
-}
-
 void nand_spl_read(uint32_t offs, int size, void *dst)
 {
 //	printf("i@%x(%x)->%p\n", offs, size, dst);
@@ -439,7 +306,7 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 				printf("ECC error @%x\n", offs);
 
 			if (status) {
-				if (retry < read_retry.retries) {
+				if (retry + 1 < read_retry.retries) {
 					retry++;
 					if (read_retry.setup(retry))
 						/* exit from the loop */

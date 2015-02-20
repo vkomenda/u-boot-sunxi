@@ -26,7 +26,6 @@ NORMAL_DRIVERS=y
 obj-y += nand.o
 obj-y += nand_bbt.o
 obj-y += nand_ids.o
-obj-y += nand_hynix.o
 obj-y += nand_util.o
 obj-y += nand_ecc.o
 obj-y += nand_base.o
@@ -60,6 +59,7 @@ obj-$(CONFIG_NAND_OMAP_GPMC) += omap_gpmc.o
 obj-$(CONFIG_NAND_OMAP_ELM) += omap_elm.o
 obj-$(CONFIG_NAND_PLAT) += nand_plat.o
 obj-$(CONFIG_NAND_DOCG4) += docg4.o
+obj-$(CONFIG_NAND_SUNXI) += nand_hynix.o
 obj-$(CONFIG_NAND_SUNXI) += sunxi_nand_common.o
 obj-$(CONFIG_NAND_SUNXI) += sunxi_nand_id.o
 ifdef CONFIG_SPL_BUILD

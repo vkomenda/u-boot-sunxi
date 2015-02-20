@@ -1331,30 +1331,6 @@ static uint8_t *nand_transfer_oob(struct nand_chip *chip, uint8_t *oob,
 }
 
 /**
- * nand_setup_read_retry - [INTERN] Set the READ RETRY mode
- * @mtd: MTD device structure
- * @retry_mode: the retry mode to use
- *
- * Some vendors supply a special command to shift the Vt threshold, to be used
- * when there are too many bitflips in a page (i.e., ECC error). After setting
- * a new threshold, the host should retry reading the page.
- */
-static int nand_setup_read_retry(struct mtd_info *mtd, int retry_mode)
-{
-	struct nand_chip *chip = mtd->priv;
-
-        printf("RR mode %d\n", retry_mode);
-
-	if (retry_mode >= chip->read_retries)
-		return -EINVAL;
-
-	if (!chip->setup_read_retry)
-		return -EOPNOTSUPP;
-
-	return chip->setup_read_retry(mtd, retry_mode);
-}
-
-/**
  * nand_do_read_ops - [INTERN] Read data with ECC
  * @mtd: MTD device structure
  * @from: offset to read from
@@ -1367,6 +1343,7 @@ static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 {
 	int chipnr, page, realpage, col, bytes, aligned, oob_required;
 	struct nand_chip *chip = mtd->priv;
+	struct mtd_ecc_stats stats;
 	int ret = 0;
 	uint32_t readlen = ops->len;
 	uint32_t oobreadlen = ops->ooblen;
@@ -1375,8 +1352,8 @@ static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 
 	uint8_t *bufpoi, *oob, *buf;
 	unsigned int max_bitflips = 0;
-	int retry_mode = 0;
-	bool ecc_fail = false;
+
+	stats = mtd->ecc_stats;
 
 	chipnr = (int)(from >> chip->chip_shift);
 	chip->select_chip(mtd, chipnr);
@@ -1391,9 +1368,6 @@ static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 	oob_required = oob ? 1 : 0;
 
 	while (1) {
-		unsigned int ecc_failures = mtd->ecc_stats.failed;
-		unsigned int ecc_new_failures;
-
 		WATCHDOG_RESET();
 
 		bytes = min(mtd->writesize - col, readlen);
@@ -1403,7 +1377,6 @@ static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 		if (realpage != chip->pagebuf || oob) {
 			bufpoi = aligned ? buf : chip->buffers->databuf;
 
-read_retry:
 			chip->cmdfunc(mtd, NAND_CMD_READ0, 0x00, page);
 
 			/*
@@ -1414,7 +1387,8 @@ read_retry:
 				ret = chip->ecc.read_page_raw(mtd, chip, bufpoi,
 							      oob_required,
 							      page);
-			else if (!aligned && NAND_HAS_SUBPAGE_READ(chip) && !oob)
+			else if (!aligned && NAND_HAS_SUBPAGE_READ(chip) &&
+			    !oob)
 				ret = chip->ecc.read_subpage(mtd, chip,
 							col, bytes, bufpoi);
 			else
@@ -1427,13 +1401,12 @@ read_retry:
 				break;
 			}
 
-			ecc_new_failures = mtd->ecc_stats.failed - ecc_failures;
 			max_bitflips = max_t(unsigned int, max_bitflips, ret);
 
 			/* Transfer not aligned data */
 			if (!aligned) {
 				if (!NAND_HAS_SUBPAGE_READ(chip) && !oob &&
-				    !ecc_new_failures &&
+				    !(mtd->ecc_stats.failed - stats.failed) &&
 				    (ops->mode != MTD_OPS_RAW)) {
 					chip->pagebuf = realpage;
 					chip->pagebuf_bitflips = ret;
@@ -1444,6 +1417,8 @@ read_retry:
 				memcpy(buf, chip->buffers->databuf + col, bytes);
 			}
 
+			buf += bytes;
+
 			if (unlikely(oob)) {
 				int toread = min(oobreadlen, max_oobsize);
 
@@ -1453,29 +1428,6 @@ read_retry:
 					oobreadlen -= toread;
 				}
 			}
-
-			if (ecc_new_failures) {
-				if (retry_mode + 1 < chip->read_retries) {
-					retry_mode++;
-					ret = nand_setup_read_retry(mtd,
-							retry_mode);
-					if (ret < 0) {
-						printf("RR setup ERROR %d\n", ret);
-						break;
-					}
-
-					/* Reset failures; retry */
-					mtd->ecc_stats.failed = ecc_failures;
-					goto read_retry;
-				} else {
-					/* No more retry modes; real failure */
-					printf("all read retries failed for page 0x%x\n",
-					       page);
-					ecc_fail = true;
-				}
-			}
-
-			buf += bytes;
 		} else {
 			memcpy(buf, chip->buffers->databuf + col, bytes);
 			buf += bytes;
@@ -1506,10 +1458,10 @@ read_retry:
 	if (oob)
 		ops->oobretlen = ops->ooblen - oobreadlen;
 
-	if (ret < 0)
+	if (ret)
 		return ret;
 
-	if (ecc_fail)
+	if (mtd->ecc_stats.failed - stats.failed)
 		return -EBADMSG;
 
 	return max_bitflips;

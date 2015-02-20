@@ -166,6 +166,9 @@ void sunxi_nand_set_gpio(void);
 // Utils
 //
 
+void wait_cmdfifo_free(void);
+void wait_cmd_finish(void);
+int check_rb_ready(int rb);
 void select_rb(int rb);
 void enable_random_preset(void);
 void enable_random(uint32_t page);
@@ -179,5 +182,17 @@ __s32 _wait_dma_end(void);
 
 void nfc_read_page1k(uint32_t page_addr, void *buff);
 void nfc_write_page1k(uint32_t page_addr, void *buff);
+
+/* Read retry */
+struct read_retry_setting {
+	uint8_t  retries; // maximum number of possible retries
+	uint8_t  regnum;  // number of registers to set on each RR step
+	uint8_t* regs;    // array of register addresses
+	uint8_t* values;  // RR values to be written into the RR registers
+        int      (*setup)(int retry);  // setup function
+};
+
+extern struct read_retry_setting read_retry;
+int hynix_rr_init(const uint8_t *id);
 
 #endif
