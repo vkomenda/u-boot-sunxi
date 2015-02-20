@@ -166,37 +166,6 @@ void sunxi_nand_set_gpio(void);
 // Utils
 //
 
-/*
-static inline void wait_cmdfifo_free(void)
-{
-	int timeout = 0xffff;
-	while ((timeout--) && (readl(NFC_REG_ST) & NFC_CMD_FIFO_STATUS));
-	if (timeout <= 0) {
-		error("wait_cmdfifo_free timeout\n");
-	}
-}
-
-static inline void wait_cmd_finish(void)
-{
-	int timeout = 0xffff;
-	while((timeout--) && !(readl(NFC_REG_ST) & NFC_CMD_INT_FLAG));
-	if (timeout <= 0) {
-		error("wait_cmd_finish timeout\n");
-		return;
-	}
-	writel(NFC_CMD_INT_FLAG, NFC_REG_ST);
-}
-
-// 1 for ready, 0 for not ready
-static inline int check_rb_ready(int rb)
-{
-	return (readl(NFC_REG_ST) & (NFC_RB_STATE0 << (rb & 0x3))) ? 1 : 0;
-}
-*/
-
-void wait_cmdfifo_free(void);
-void wait_cmd_finish(void);
-int check_rb_ready(int rb);
 void select_rb(int rb);
 void enable_random_preset(void);
 void enable_random(uint32_t page);

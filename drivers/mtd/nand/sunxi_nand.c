@@ -30,6 +30,32 @@ static int program_column = -1, program_page = -1;
 // special initialisation-time mode for reading the OTP area
 static uint8_t otp_mode = 0;
 
+static inline void wait_cmdfifo_free(void)
+{
+	int timeout = 0xffff;
+	while ((timeout--) && (readl(NFC_REG_ST) & NFC_CMD_FIFO_STATUS));
+	if (timeout <= 0) {
+		error("timeout\n");
+	}
+}
+
+static inline void wait_cmd_finish(void)
+{
+	int timeout = 0xffff;
+	while((timeout--) && !(readl(NFC_REG_ST) & NFC_CMD_INT_FLAG));
+	if (timeout <= 0) {
+		error("timeout\n");
+		return;
+	}
+	writel(NFC_CMD_INT_FLAG, NFC_REG_ST);
+}
+
+// 1 for ready, 0 for not ready
+static inline int check_rb_ready(int rb)
+{
+	return (readl(NFC_REG_ST) & (NFC_RB_STATE0 << (rb & 0x3))) ? 1 : 0;
+}
+
 static void nfc_select_chip(struct mtd_info *mtd, int chip)
 {
 	uint32_t ctl;

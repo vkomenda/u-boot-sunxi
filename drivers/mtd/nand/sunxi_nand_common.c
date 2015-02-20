@@ -40,32 +40,6 @@ static const uint16_t random_seed[128] = {
 	0x7c57, 0x0fbe, 0x46ce, 0x4939, 0x6b17, 0x37bb, 0x3e91, 0x76db
 };
 
-void wait_cmdfifo_free(void)
-{
-	int timeout = 0xffff;
-	while ((timeout--) && (readl(NFC_REG_ST) & NFC_CMD_FIFO_STATUS));
-	if (timeout <= 0) {
-		error("wait_cmdfifo_free timeout\n");
-	}
-}
-
-void wait_cmd_finish(void)
-{
-	int timeout = 0xffff;
-	while((timeout--) && !(readl(NFC_REG_ST) & NFC_CMD_INT_FLAG));
-	if (timeout <= 0) {
-		error("wait_cmd_finish timeout\n");
-		return;
-	}
-	writel(NFC_CMD_INT_FLAG, NFC_REG_ST);
-}
-
-// 1 for ready, 0 for not ready
-int check_rb_ready(int rb)
-{
-	return (readl(NFC_REG_ST) & (NFC_RB_STATE0 << (rb & 0x3))) ? 1 : 0;
-}
-
 void sunxi_nand_set_clock(int hz)
 {
 	struct sunxi_ccm_reg *const ccm =

@@ -48,6 +48,32 @@ struct spl_read_retry {
 struct spl_read_retry read_retry;
 int hynix_setup_read_retry(int retry);
 
+static void wait_cmdfifo_free(void)
+{
+	int timeout = 0xffff;
+	while ((timeout--) && (readl(NFC_REG_ST) & NFC_CMD_FIFO_STATUS));
+	if (timeout <= 0) {
+		printf("wait_cmdfifo_free timeout\n");
+	}
+}
+
+static void wait_cmd_finish(void)
+{
+	int timeout = 0xffff;
+	while((timeout--) && !(readl(NFC_REG_ST) & NFC_CMD_INT_FLAG));
+	if (timeout <= 0) {
+		printf("wait_cmd_finish timeout\n");
+		return;
+	}
+	writel(NFC_CMD_INT_FLAG, NFC_REG_ST);
+}
+
+// 1 for ready, 0 for not ready
+static int check_rb_ready(int rb)
+{
+	return (readl(NFC_REG_ST) & (NFC_RB_STATE0 << (rb & 0x3))) ? 1 : 0;
+}
+
 static int nfc_isbad(uint32_t offs)
 {
 	uint32_t page_addr;
