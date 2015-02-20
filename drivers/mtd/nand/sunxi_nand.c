@@ -35,7 +35,7 @@ static inline void wait_cmdfifo_free(void)
 	int timeout = 0xffff;
 	while ((timeout--) && (readl(NFC_REG_ST) & NFC_CMD_FIFO_STATUS));
 	if (timeout <= 0) {
-		error("timeout\n");
+		error("timeout");
 	}
 }
 
@@ -44,7 +44,7 @@ static inline void wait_cmd_finish(void)
 	int timeout = 0xffff;
 	while((timeout--) && !(readl(NFC_REG_ST) & NFC_CMD_INT_FLAG));
 	if (timeout <= 0) {
-		error("timeout\n");
+		error("timeout");
 		return;
 	}
 	writel(NFC_CMD_INT_FLAG, NFC_REG_ST);
@@ -76,6 +76,8 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 
 	addr_cycle = wait_rb_flag = byte_count = sector_count = 0;
 
+	printf("cmd %x col %x page %x: wait fifo before\n",
+	       command, column, page_addr);
 	wait_cmdfifo_free();
 
 	// switch to AHB
@@ -303,7 +305,9 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 	}
 
 	// wait command send complete
+	printf("cmd: wait fifo after\n");
 	wait_cmdfifo_free();
+	printf("cmd: wait cmd\n");
 	wait_cmd_finish();
 
 	// reset will wait for RB ready
@@ -619,7 +623,6 @@ int board_nand_init(struct nand_chip *nand)
 		return -ENODEV;
 	}
 	else {
-		printf(" found chip in Sunxi database:");
 		for (j = 0; j < chip->id_len; j++)
 			printf(" %x", chip->id[j]);
 	}

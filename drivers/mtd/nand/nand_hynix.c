@@ -186,23 +186,29 @@ static int h27ucg8t2e_init(struct mtd_info *mtd, const uint8_t *id)
 	int rrtReg, rrtSet, i;
 	int ret;
 
-	printf("mtd %p, ID %.2x %.2x %.2x %.2x %.2x %.2x",
-	       mtd, id[0], id[1], id[2], id[3], id[4], id[5]);
-
 	buf = kzalloc(UCG8T2E_RRT_OTP_SIZE, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
 
+	printf("RR: select\n");
 	chip->select_chip(mtd, 0);
+	printf("RR: reset\n");
 	chip->cmdfunc(mtd, NAND_CMD_RESET, -1, -1);
 
 	/* copy RRT from OTP to buf */
+	printf("RR: 0x36\n");
 	chip->cmdfunc(mtd, 0x36, 0x38, -1);
+	printf("RR: write 0x52\n");
 	chip->write_byte(mtd, 0x52);
+	printf("RR: 0x16\n");
 	chip->cmdfunc(mtd, 0x16, -1, -1);
+	printf("RR: 0x17\n");
 	chip->cmdfunc(mtd, 0x17, -1, -1);
+	printf("RR: 0x04\n");
 	chip->cmdfunc(mtd, 0x04, -1, -1);
+	printf("RR: 0x19\n");
 	chip->cmdfunc(mtd, 0x19, -1, -1);
+	printf("RR: read @ 0x200\n");
 	chip->cmdfunc(mtd, NAND_CMD_READ0, 0, 0x200);
 
 	/*
@@ -228,13 +234,18 @@ static int h27ucg8t2e_init(struct mtd_info *mtd, const uint8_t *id)
 	}
 
 	/* copy RRT from OTP, command suffix */
+	printf("RR: reset\n");
 	chip->cmdfunc(mtd, NAND_CMD_RESET, -1, -1);
+	printf("RR: 0x36\n");
 	chip->cmdfunc(mtd, 0x36, 0x38, -1);
+	printf("RR: write 0\n");
 	chip->write_byte(mtd, 0);
 
 	/* dummy read from any address */
+	printf("RR: read\n");
 	chip->cmdfunc(mtd, NAND_CMD_READ0, 0, 0);
 
+	printf("RR: select\n");
 	chip->select_chip(mtd, -1);
 
 	/* FIXME: common function - majority check, not "all correct" */

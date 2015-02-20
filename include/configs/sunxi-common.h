@@ -490,10 +490,8 @@
 #define CONFIG_CMD_I2C
 
 /* Watchdog */
-#if 0
 #define CONFIG_WATCHDOG			/* automatic watchdog support */
 #define CONFIG_CMD_WATCHDOG		/* watchdog command setting the watchdog timeout */
-#endif
 
 /* GPIO */
 #define CONFIG_SUNXI_GPIO

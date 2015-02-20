@@ -442,6 +442,9 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 					status = 0;
 				}
 			}
+			else {
+				status = 0;
+			}
 		}
 
 		if (retry)
