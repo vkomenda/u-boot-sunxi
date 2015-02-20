@@ -183,6 +183,46 @@ static void nfc_select_chip(int chip)
 	writel(ctl, NFC_REG_CTL);
 }
 
+static void h27ucg8t2e_init(void)
+{
+	/* TODO: consider loading read retry tables from OOB */
+	read_retry.retries = 8;
+	read_retry.regnum  = 4;
+	read_retry.regs    = h27ucg8t2e_read_retry_regs;
+	read_retry.values  = h27ucg8t2e_read_retry_values;
+	read_retry.setup   = hynix_setup_read_retry;
+}
+
+struct hynix_init_assoc {
+	uint8_t id[6];
+	void (*init)(void);
+};
+
+struct hynix_init_assoc hynix_init[] = {
+//	{
+//		.id = {NAND_MFR_HYNIX, 0xd7, 0x94, 0xda, 0x74, 0xc3},
+//		.init = TODO,
+//	},
+	{
+		.id = {NAND_MFR_HYNIX, 0xde, 0x14, 0xa7, 0x42, 0x4a},
+		.init = h27ucg8t2e_init,
+	},
+};
+
+static void spl_hynix_nand_init(const uint8_t *id)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(hynix_init); i++) {
+		struct hynix_init_assoc *init = &hynix_init[i];
+		if (memcmp(id, init->id, sizeof(init->id)))
+			continue;
+
+		init->init();
+		break;
+	}
+}
+
 static int nfc_init(void)
 {
 	u32 ctl;
@@ -238,12 +278,7 @@ static int nfc_init(void)
 			printf(" %x", chip->id[j]);
 	printf("\n");
 
-	/* TODO: load read retry tables from OOB */
-	read_retry.retries = 8;
-	read_retry.regnum  = 4;
-	read_retry.regs    = h27ucg8t2e_read_retry_regs;
-	read_retry.values  = h27ucg8t2e_read_retry_values;
-	read_retry.setup   = hynix_setup_read_retry;
+	spl_hynix_nand_init(chip->id);
 
 	// TODO: remove this upper bound
 	if (chip->clock_freq > 30)
