@@ -49,8 +49,8 @@ extern bool nand_page_is_empty(struct mtd_info *mtd, void *data, void *oob);
  * is supported now. If you add a chip with bigger oobsize/page
  * adjust this accordingly.
  */
-#define NAND_MAX_OOBSIZE	640
-#define NAND_MAX_PAGESIZE	8192
+#define NAND_MAX_OOBSIZE	2048
+#define NAND_MAX_PAGESIZE	16384
 
 /*
  * Constants for hardware specific CLE/ALE/NCE function

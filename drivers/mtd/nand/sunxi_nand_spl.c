@@ -215,11 +215,10 @@ static void spl_hynix_nand_init(const uint8_t *id)
 
 	for (i = 0; i < ARRAY_SIZE(hynix_init); i++) {
 		struct hynix_init_assoc *init = &hynix_init[i];
-		if (memcmp(id, init->id, sizeof(init->id)))
-			continue;
-
-		init->init();
-		break;
+		if (!memcmp(id, init->id, sizeof(init->id))) {
+			init->init();
+			break;
+		}
 	}
 }
 
