@@ -138,25 +138,25 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		page_addr = program_page;
 		debug("cmdfunc pageprog: %d %d\n", column, page_addr);
 
-		// for write OOB
-		if (column == mtd->writesize) {
-			sector_count = 1024 /1024;
-			write_size = 1024;
-		}
-		else if (column == 0) {
+		if (column == 0) {
 			sector_count = mtd->writesize / 1024;
 			do_enable_ecc = 1;
+			do_enable_random = 1;
 			write_size = mtd->writesize;
 			for (i = 0; i < sector_count; i++)
 				writel(*((u32*)
 					 (write_buffer + mtd->writesize) + i * 4),
 				       NFC_REG_USER_DATA(i));
 		}
+		else if (column == mtd->writesize) {
+			/* OOB write: ECC and the randomiser are disabled */
+			sector_count = 1;
+			write_size = 1024;
+		}
 		else {
-			printf("program unsupported column %d %d\n", column, page_addr);
+			printf("unsupported column %x\n", column);
 			return;
 		}
-		do_enable_random = 1;
 
 		//access NFC internal RAM by DMA bus
 		writel(readl(NFC_REG_CTL) | NFC_RAM_METHOD, NFC_REG_CTL);
