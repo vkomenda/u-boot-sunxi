@@ -131,7 +131,7 @@ static int nfc_init(void)
 	u32 ctl;
 	int i, j;
 	uint8_t id[8];
-	struct nand_chip_param *chip_cur, *chip = NULL;
+	struct nand_chip_param *chip_cur = NULL, *chip = NULL;
 
 	// set init clock
 	sunxi_nand_set_clock(NAND_MAX_CLOCK);
