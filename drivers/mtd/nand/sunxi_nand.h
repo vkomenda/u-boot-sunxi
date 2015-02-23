@@ -185,7 +185,7 @@ void nfc_write_page1k(uint32_t page_addr, void *buff);
 
 /* Read retry */
 struct read_retry_setting {
-	uint8_t  retries; // maximum number of possible retries
+	uint8_t  tries;   // maximum number of possible tries = 1 + retries
 	uint8_t  regnum;  // number of registers to set on each RR step
 	uint8_t* regs;    // array of register addresses
 	uint8_t* values;  // RR values to be written into the RR registers
@@ -193,6 +193,6 @@ struct read_retry_setting {
 };
 
 extern struct read_retry_setting read_retry;
-int hynix_rr_init(const uint8_t *id);
+int read_retry_init(const uint8_t *id);
 
 #endif

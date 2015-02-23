@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2014 Boris BREZILLON <b.brezillon.dev@gmail.com>
- *               2015 Vladimir Komendantskiy
+ * Copyright (C) 2015 Vladimir Komendantskiy
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,7 +55,7 @@ static int hynix_setup_read_retry(int retry)
 
 	printf("RR %d\n", retry);
 
-	if (retry >= read_retry.retries)
+	if (retry >= read_retry.tries)
 		return -EINVAL;
 
 	for (i = 0; i < read_retry.regnum; i++) {
@@ -77,11 +76,11 @@ static int hynix_setup_read_retry(int retry)
 static void h27ucg8t2e_init(void)
 {
 	/* TODO: consider loading read retry tables from OOB */
-	read_retry.retries = 8;
-	read_retry.regnum  = 4;
-	read_retry.regs    = h27ucg8t2e_read_retry_regs;
-	read_retry.values  = h27ucg8t2e_read_retry_values;
-	read_retry.setup   = hynix_setup_read_retry;
+	read_retry.tries  = 8;
+	read_retry.regnum = 4;
+	read_retry.regs   = h27ucg8t2e_read_retry_regs;
+	read_retry.values = h27ucg8t2e_read_retry_values;
+	read_retry.setup  = hynix_setup_read_retry;
 }
 
 struct hynix_init_assoc {
@@ -100,9 +99,12 @@ struct hynix_init_assoc hynix_init[] = {
 	},
 };
 
-int hynix_rr_init(const uint8_t *id)
+int read_retry_init(const uint8_t *id)
 {
 	int i, ret = -ENODEV;
+
+	/* default value for chips not supported by the RR procedures */
+	read_retry.tries = 1;
 
 	for (i = 0; i < ARRAY_SIZE(hynix_init); i++) {
 		struct hynix_init_assoc *init = &hynix_init[i];

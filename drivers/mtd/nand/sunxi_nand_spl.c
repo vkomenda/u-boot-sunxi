@@ -2,6 +2,7 @@
  * sunxi_nand_spl.c
  *
  * Copyright (C) 2013 Qiang Yu <yuq825@gmail.com>
+ *               2015 Vladimir Komendantskiy
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -164,7 +165,7 @@ static int nfc_init(void)
 	// read nand chip id
 	nfc_readid(id);
 
-//	printf("NAND:");
+	printf("NAND:");
 	/* Get parameters of the chip in the database of the driver. */
 	chip_cur = sunxi_get_nand_chip_param(id[0]);
 	for (i = 0; !chip && chip_cur[i].id_len; i++)
@@ -186,10 +187,8 @@ static int nfc_init(void)
 			printf(" %x", chip->id[j]);
 	printf("\n");
 
-	/* set default for chips not supported by the RR procedures */
-	read_retry.retries = 0;
 	/* force hard-coded RR parameters for supported chips */
-	hynix_rr_init(chip->id);
+	read_retry_init(chip->id);
 
 	// TODO: remove this upper bound
 	if (chip->clock_freq > 30)
@@ -211,10 +210,8 @@ static int nfc_init(void)
 	ctl = NFC_EN;
 
 	// Page size
-	if (chip->page_shift > 14 || chip->page_shift < 10) {
-//		printf("Page shift out of range\n");
+	if (chip->page_shift > 14 || chip->page_shift < 10)
 		return -EINVAL;
-	}
 	// 0 for 1K
 	ctl |= ((chip->page_shift - 10) & 0xf) << 8;
 	writel(ctl, NFC_REG_CTL);
@@ -287,7 +284,7 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 		retry = 0;
 		status = 1;
 
-		while (status && retry < read_retry.retries + 1) {
+		while (status && retry < read_retry.tries + 1) {
 			status = nfc_read_page(offs, dst, false);
 			if (!status)
 				/* page read successful */
@@ -306,7 +303,7 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 				printf("ECC error @%x\n", offs);
 
 			if (status) {
-				if (retry + 1 < read_retry.retries) {
+				if (retry + 1 < read_retry.tries) {
 					retry++;
 					if (read_retry.setup(retry))
 						/* exit from the loop */

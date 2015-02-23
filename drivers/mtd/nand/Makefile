@@ -59,7 +59,7 @@ obj-$(CONFIG_NAND_OMAP_GPMC) += omap_gpmc.o
 obj-$(CONFIG_NAND_OMAP_ELM) += omap_elm.o
 obj-$(CONFIG_NAND_PLAT) += nand_plat.o
 obj-$(CONFIG_NAND_DOCG4) += docg4.o
-obj-$(CONFIG_NAND_SUNXI) += nand_hynix.o
+obj-$(CONFIG_NAND_SUNXI) += sunxi_read_retry.o
 obj-$(CONFIG_NAND_SUNXI) += sunxi_nand_common.o
 obj-$(CONFIG_NAND_SUNXI) += sunxi_nand_id.o
 ifdef CONFIG_SPL_BUILD

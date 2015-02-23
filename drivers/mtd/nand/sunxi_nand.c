@@ -499,7 +499,7 @@ check_read_retry:
 		else {
 			/* ECC error. The number of bitflips is inessential */
 			mtd->ecc_stats.failed++;
-			if (retry + 1 < read_retry.retries) {
+			if (retry + 1 < read_retry.tries) {
 				retry++;
 				read_retry.setup(retry);
 				nfc_cmdfunc(mtd, NAND_CMD_READ0, 0, page);
@@ -570,18 +570,15 @@ int board_nand_init(struct nand_chip *nand)
 		printf(" unknown chip");
 		return -ENODEV;
 	}
-	else {
+	else
 		for (j = 0; j < chip->id_len; j++)
 			printf(" %x", chip->id[j]);
-	}
 	printf("\n");
 
-	/* set default for chips not supported by the RR procedures */
-	read_retry.retries = 0;
 	/* force hard-coded RR parameters for supported chips */
-	hynix_rr_init(chip->id);
+	read_retry_init(chip->id);
 
-	// set final NFC clock freq
+	// TODO: remove this upper bound
 	if (chip->clock_freq > 30)
 		chip->clock_freq = 30;
 	sunxi_nand_set_clock((int)chip->clock_freq * 1000000);
