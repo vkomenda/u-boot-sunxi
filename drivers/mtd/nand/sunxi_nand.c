@@ -148,7 +148,9 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 			do_enable_ecc = 1;
 			write_size = mtd->writesize;
 			for (i = 0; i < sector_count; i++)
-				writel(*((unsigned int *)(write_buffer + mtd->writesize) + i), NFC_REG_USER_DATA(i));
+				writel(*((u32*)
+					 (write_buffer + mtd->writesize) + i * 4),
+				       NFC_REG_USER_DATA(i));
 		}
 		else {
 			printf("program unsupported column %d %d\n", column, page_addr);
@@ -625,7 +627,7 @@ int board_nand_init(struct nand_chip *nand)
 	nand->ecc.bytes = 0;
 
 	// Temporary. Derived from the ID in nand_base.c:parse_hynix_sizes().
-	nand->ecc.strength = 40;
+	nand->ecc.strength = 64;
 	nand->ecc.size = 1024;
 
 	// set buffer size: page size + max oob size
