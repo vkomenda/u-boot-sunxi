@@ -278,7 +278,7 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 		retry = 0;
 		status = 1;
 
-		while (status && retry < read_retry.tries + 1) {
+		while (status && retry < read_retry.tries) {
 			status = nfc_read_page(offs, dst, false);
 			if (!status)
 				/* page read successful */
