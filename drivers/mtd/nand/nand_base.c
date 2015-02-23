@@ -3204,14 +3204,6 @@ ident_done:
 	if (mtd->writesize > 512 && chip->cmdfunc == nand_command)
 		chip->cmdfunc = nand_command_lp;
 
-	/* Initialise manufacturer-specific procedures, e.g., read retry. */
-	if (nand_manuf_ids[maf_idx].init) {
-		int err;
-		err = nand_manuf_ids[maf_idx].init(mtd, id_data);
-		if (err)
-			return ERR_PTR(err);
-	}
-
 	name = type->name;
 #ifdef CONFIG_SYS_NAND_ONFI_DETECTION
 	if (chip->onfi_version)
