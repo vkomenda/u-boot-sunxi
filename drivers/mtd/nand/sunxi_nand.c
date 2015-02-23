@@ -627,7 +627,7 @@ int board_nand_init(struct nand_chip *nand)
 	nand->ecc.bytes = 0;
 
 	// Temporary. Derived from the ID in nand_base.c:parse_hynix_sizes().
-	nand->ecc.strength = 64;
+	nand->ecc.strength = 48;
 	nand->ecc.size = 1024;
 
 	// set buffer size: page size + max oob size
