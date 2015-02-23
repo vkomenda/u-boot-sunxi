@@ -94,14 +94,8 @@ static void nfc_reset(void)
 	writel(cfg, NFC_REG_CMD);
 	wait_cmdfifo_free();
 	wait_cmd_finish();
-	// wait rb0 ready
 	select_rb(0);
 	while (!check_rb_ready(0));
-	// wait rb1 ready
-//	select_rb(1);
-//	while (!check_rb_ready(1));
-	// select rb 0 back
-//	select_rb(0);
 }
 
 static void nfc_readid(uint8_t *id)
@@ -309,9 +303,8 @@ void nand_spl_read(uint32_t offs, int size, void *dst)
 						/* exit from the loop */
 						status = 0;
 				}
-				else {
+				else
 					printf("reads failed @%x\n", offs);
-				}
 			}
 		}
 
@@ -332,7 +325,7 @@ int nand_spl_load_image(uint32_t offs, unsigned int image_size, void *dst)
 	while (size > 0) {
 		puts(">");
 		if (nand_spl_isbad(offs)) {
-			debug("Bad NAND block %x\n", offs);
+			debug("Bad block @%x\n", offs);
 			offs += sunxi_nand_spl_block_size;
 			continue;
 		}

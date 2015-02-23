@@ -479,9 +479,11 @@
 #define CONFIG_SYS_I2C_SLAVE		0x7f
 #define CONFIG_CMD_I2C
 
+#if 0
 /* Watchdog */
 #define CONFIG_WATCHDOG			/* automatic watchdog support */
 #define CONFIG_CMD_WATCHDOG		/* watchdog command setting the watchdog timeout */
+#endif
 
 /* GPIO */
 #define CONFIG_SUNXI_GPIO

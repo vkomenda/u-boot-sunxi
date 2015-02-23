@@ -2,6 +2,7 @@
  * sunxi_nand.c
  *
  * Copyright (C) 2013 Qiang Yu <yuq825@gmail.com>
+ *               2015 Vladimir Komendantskiy
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -250,11 +251,6 @@ static void nfc_cmdfunc(struct mtd_info *mtd, unsigned command, int column,
 		// wait rb0 ready
 		select_rb(0);
 		while (!check_rb_ready(0));
-		// wait rb1 ready
-//		select_rb(1);
-//		while (!check_rb_ready(1));
-		// select rb 0 back
-//		select_rb(0);
 		break;
 	case NAND_CMD_READ0:
 	case NAND_CMD_READ1: {
@@ -526,6 +522,10 @@ int board_nand_init(struct nand_chip *nand)
 	int i, j;
 	uint8_t id[8];
 	struct nand_chip_param *chip_cur, *chip = NULL;
+
+	memset(read_buffer,      0, ARRAY_SIZE(read_buffer));
+	memset(write_buffer,     0, ARRAY_SIZE(write_buffer));
+	memset(&sunxi_ecclayout, 0, sizeof(sunxi_ecclayout));
 
 	// set init clock
 	sunxi_nand_set_clock(NAND_MAX_CLOCK);

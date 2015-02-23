@@ -83,12 +83,12 @@ static void h27ucg8t2e_init(void)
 	read_retry.setup  = hynix_setup_read_retry;
 }
 
-struct hynix_init_assoc {
+struct rr_chip_init_assoc {
 	uint8_t id[6];
 	void (*init)(void);
 };
 
-struct hynix_init_assoc hynix_init[] = {
+struct rr_chip_init_assoc rr_chip_init[] = {
 //	{
 //		.id = {NAND_MFR_HYNIX, 0xd7, 0x94, 0xda, 0x74, 0xc3},
 //		.init = TODO,
@@ -106,8 +106,8 @@ int read_retry_init(const uint8_t *id)
 	/* default value for chips not supported by the RR procedures */
 	read_retry.tries = 1;
 
-	for (i = 0; i < ARRAY_SIZE(hynix_init); i++) {
-		struct hynix_init_assoc *init = &hynix_init[i];
+	for (i = 0; i < ARRAY_SIZE(rr_chip_init); i++) {
+		struct rr_chip_init_assoc *init = &rr_chip_init[i];
 		if (!memcmp(id, init->id, sizeof(init->id))) {
 			init->init();
 			ret = 0;

@@ -2,6 +2,7 @@
  * sunxi_nand_common.c
  *
  * Copyright (C) 2013 Qiang Yu <yuq825@gmail.com>
+ *               2015 Vladimir Komendantskiy
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
